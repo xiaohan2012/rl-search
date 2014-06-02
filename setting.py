@@ -1,0 +1,4 @@
+MYSQL_PWD = "xh24206688"
+MYSQL_DB = "scinet3"
+MYSQL_USER = "hxiao"
+MYSQL_HOST = "127.0.0.1"
