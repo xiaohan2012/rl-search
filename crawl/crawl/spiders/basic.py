@@ -7,28 +7,23 @@ from time import time
 from crawl.items import PageItem
 
 import re, os, datetime
-from chardet import detect 
 from pyquery import PyQuery as pq
 
 from config import *
-from util import get_links_db
+from util import get_links_csv
 
 class BasicSpider(CrawlSpider):
     name = 'basic'
     
     def __init__(self, *args, **kwargs):
         super(BasicSpider, self).__init__(*args, **kwargs)
-        if kwargs.has_key('offset') and kwargs['offset'].isdigit():
-            self.offset = int(kwargs['offset'])
+        if kwargs.has_key('path') and len(kwargs['path']):
+            self.path = kwargs['path']
+            self.start_urls = get_links_csv(kwargs['path'])
         else:
-            raise Exception('`offset` should be specified')
+            raise Exception('path should be passed')
+        #self.start_urls = [(110882, 'http://www.limburger.nl/article/20130911/ANPNIEUWS01/130919470')]
 
-        if kwargs.has_key('limit') and kwargs['limit'].isdigit():
-            self.limit = int(kwargs['limit'])
-        else:
-            self.limit = None
-        self.start_urls = get_links_db(self.offset, self.limit)
-        
     def start_requests(self):
         for id, url in self.start_urls:
             yield Request(url=url,
@@ -38,11 +33,10 @@ class BasicSpider(CrawlSpider):
     def parse(self, response):
         i = PageItem()
         i["id"] = response.meta["id"]
-        from boilerpipe.extract import Extractor
-        extractor = Extractor(extractor='ArticleExtractor', html = response.body)
-        i['content'] = extractor.getText()
+        #save the raw html, so that we don't need to crawl again..
         
-        #using pipline
+        i['html'] = response.body
+
         doc = pq(response.body)
 
         #preprocessing, remove script and link elements
@@ -85,15 +79,6 @@ class BasicSpider(CrawlSpider):
         else:
             i['language'] = ""
             
-        #if unicode decoding error occurs, determine the encoding again
-        """
-        try:
-            i['content'] = doc.find("body").text();
-        except UnicodeDecodeError:
-            encoding = detect(response.body)['encoding']
-            doc = pq(response.body.decode(encoding))
-            i['content'] = doc.find("body").text()
-        """ 
         i['url'] = response.url
         
         return i

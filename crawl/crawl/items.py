@@ -9,9 +9,11 @@ class PageItem(Item):
     # define the fields for your item here like:
     id = Field()
     url = Field()
-    content = Field()
+    html = Field()
     keywords = Field()
     description = Field()
     language = Field()
     
     
+class FengItem(Item):
+    url = Field()

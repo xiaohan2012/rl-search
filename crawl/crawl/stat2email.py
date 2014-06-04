@@ -14,14 +14,11 @@ class StatsToEmail(object):
         
     def get_email_body(self, spider):
         import pprint
-        return """Just finished crawling from %s to %s.
+        return """Just finished crawling file %s.
         
 Spider statistics are:
         
-%s""" %(str(spider.offset),
-        ('the end' 
-         if not spider.limit 
-         else str(spider.offset + spider.limit)),
+%s""" %(spider.path,
         pprint.pformat(self.stats.get_stats()),)
         
     def on_spider_closed(self, spider, reason):

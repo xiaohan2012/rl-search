@@ -14,15 +14,16 @@ NEWSPIDER_MODULE = 'crawl.spiders'
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'crawl (+http://www.yourdomain.com)'
 ITEM_PIPELINES = {
-    'crawl.pipelines.PagePipeline': 300
+    #'crawl.pipelines.ToUnicodePipeline': 299,
+    'crawl.pipelines.ToDBPipeline': 300
 }
 
 
 CONCURRENT_REQUESTS = 48
-#CLOSESPIDER_ITEMCOUNT=10 #0.4 million urls to collect
+# CLOSESPIDER_ITEMCOUNT=200 #0.4 million urls to collect
 
 EXTENSIONS={
-    #'crawl.middlewares.DownloadTimer': 901,
+    #'crawl.middlewares.DownloadTimer': 0,
     'crawl.stat2email.StatsToEmail': 900
 }
 
