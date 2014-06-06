@@ -5,6 +5,12 @@ import MySQLdb, MySQLdb.cursors
 from json import loads
 from setting import MYSQL_CONN_SETTING
 
+conn = MySQLdb.connect(**MYSQL_CONN_SETTING)
+
+def is_url_crawled(id):
+    c = conn.cursor()
+    c.execute('SELECT id from webpage where id = %s and !isnull(crawled_html) and length(crawled_html) != 0', (id,))
+    return (c.fetchone() is not None)
 
 #deprecated
 def get_links_db(offset, limit = None):
@@ -83,9 +89,8 @@ def mbrain_data2db(filename, category = "editorial", lang = "en", table="webpage
             page_json = loads(line)
             if page_json.has_key("contentLanguage") and page_json["contentLanguage"] == lang and \
                page_json.has_key("category") and page_json["category"] == category:
-                
                 x.execute(sql_tmpl, 
-                             (page_json.get(field) for field in fields))
+                          (page_json.get(field) for field in fields))
                 counter += 1
                 if counter % 1000 == 0:
                     print "%d inserted" %(counter)

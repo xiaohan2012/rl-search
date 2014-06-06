@@ -10,7 +10,7 @@ import re, os, datetime
 from pyquery import PyQuery as pq
 
 from config import *
-from util import get_links_csv
+from util import get_links_csv, is_url_crawled
 
 class BasicSpider(CrawlSpider):
     name = 'basic'
@@ -26,9 +26,10 @@ class BasicSpider(CrawlSpider):
 
     def start_requests(self):
         for id, url in self.start_urls:
-            yield Request(url=url,
-                          meta = {'id': id}, #we need the id attr to do the database update
-                          dont_filter = True)
+            if not is_url_crawled(id):
+                yield Request(url=url,
+                              meta = {'id': id}, #we need the id attr to do the database update
+                              dont_filter = True)
             
     def parse(self, response):
         i = PageItem()
@@ -36,9 +37,13 @@ class BasicSpider(CrawlSpider):
         #save the raw html, so that we don't need to crawl again..
         
         i['html'] = response.body
+        i['url'] = response.url
 
-        doc = pq(response.body)
-
+        try:
+            doc = pq(response.body)
+        except:
+            print 'Parsing error occurred for %s' %response.url
+            return i
         #preprocessing, remove script and link elements
         doc.find("body script").remove()
         doc.find("body link").remove()
@@ -71,15 +76,6 @@ class BasicSpider(CrawlSpider):
             i['description'] = desc_meta.attr("content")
         else:
             i['description'] = ""
-            
-        #get the language information
-        lang_meta = doc.find('meta[name="language"]')
-        if len(lang_meta) > 0:
-            i['language'] = lang_meta.attr("content").strip()
-        else:
-            i['language'] = ""
-            
-        i['url'] = response.url
-        
+                    
         return i
 

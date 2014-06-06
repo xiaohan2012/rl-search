@@ -14,6 +14,7 @@ x = conn.cursor()
 
 kw_path = 'kws.pickle'
 
+#get all keywords
 #if there, load it
 #otherwise, generate and save
 if os.path.exists(kw_path):
