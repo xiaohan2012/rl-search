@@ -26,11 +26,10 @@ class ToUnicodePipeline(object):
 class ToDBPipeline(object):
     def process_item(self, item, spider):
         #save it to database
-        c.execute("UPDATE webpage SET crawled_keywords=%s, crawled_language=%s, crawled_description=%s, html=compress(%s) WHERE id=%s", (dumps(item['keywords']), 
-                                                                                                                                         item['language'],
-                                                                                                                                         item['description'],
-                                                                                                                                         item['html'],
-                                                                                                                                         item['id']
-                                                                                                                                     ))
+        c.execute("UPDATE webpage SET crawled_keywords=%s, crawled_description=%s, crawled_html=compress(%s) WHERE id=%s", (dumps(item.get('keywords', [])), 
+                                                                                                                            item.get('description', ''),
+                                                                                                                            item['html'],
+                                                                                                                            item['id']
+                                                                                                                        ))
         conn.commit()
         return item

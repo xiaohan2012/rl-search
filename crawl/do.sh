@@ -13,4 +13,4 @@ then
     rm $log_file_path
 fi
 
-scrapy crawl -L INFO basic  -a path=$path --set LOG_FILE=$log_file_path
+scrapy crawl -L INFO basic  -a path=$path #--set LOG_FILE=$log_file_path

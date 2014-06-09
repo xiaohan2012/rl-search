@@ -18,13 +18,12 @@ ITEM_PIPELINES = {
     'crawl.pipelines.ToDBPipeline': 300
 }
 
-
 CONCURRENT_REQUESTS = 48
 # CLOSESPIDER_ITEMCOUNT=200 #0.4 million urls to collect
 
 EXTENSIONS={
     #'crawl.middlewares.DownloadTimer': 0,
-    'crawl.stat2email.StatsToEmail': 900
+    # 'crawl.stat2email.StatsToEmail': 900
 }
 
 #for the emailing stuff

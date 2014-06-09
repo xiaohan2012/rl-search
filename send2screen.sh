@@ -1,6 +1,6 @@
 #!/bin/bash
 
-array=(xaa xab xac xad xae xaf xag xah xai)
+array=(xaa  xab  xac  xad  xae  xaf  xag  xah  xai  xaj  xak  xal)
 
 
 for item in ${array[*]}

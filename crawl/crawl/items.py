@@ -12,8 +12,6 @@ class PageItem(Item):
     html = Field()
     keywords = Field()
     description = Field()
-    language = Field()
-    
     
 class FengItem(Item):
     url = Field()

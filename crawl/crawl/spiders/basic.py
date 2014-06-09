@@ -26,10 +26,9 @@ class BasicSpider(CrawlSpider):
 
     def start_requests(self):
         for id, url in self.start_urls:
-            if not is_url_crawled(id):
-                yield Request(url=url,
-                              meta = {'id': id}, #we need the id attr to do the database update
-                              dont_filter = True)
+            yield Request(url=url,
+                          meta = {'id': id}, #we need the id attr to do the database update
+                          dont_filter = True)
             
     def parse(self, response):
         i = PageItem()
