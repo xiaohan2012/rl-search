@@ -1,4 +1,4 @@
-import MySQLdb, os, random
+import MySQLdb, os, random, types
 
 from json import loads
 from pickle import dump, load
@@ -37,7 +37,56 @@ def get_all_keywords(table="brown", refresh = True):
 
     return sorted(list(all_keywords))
 
-def kw2doc_matrix(table="brown", tfidf=True, refresh = False):
+def test_matrix():
+    docs = list(enumerate(['redis database key-value-storage redis database redis a the the'.split(),
+                           'redis database redis a the the'.split(),
+                           'tornado web python tornado a the'.split(),
+                           'tornado python web web python tornado a the a the'.split(),
+                           'python a the  the'.split(),
+                           'database a a the'.split(),
+                           'web a the a the'.split()]))
+    kws = set([w for id, doc in docs  
+               for w in doc])
+    kw2doc_m = lil_matrix((len(kws), len(docs)))
+
+    return gen_kw_doc_matrix(docs, keywords = kws)
+
+
+def gen_kw_doc_matrix(docs, keywords = None, doc_n = None, tfidf=True):
+    """
+    docs: some iterable
+    """
+    if keywords is None:
+        keywords = set([w for id, doc in docs for w in doc])
+        
+    kw_ind_map = dict((kw, ind) for ind, kw in enumerate(keywords))
+    doc_ind_map = {}
+    
+    if not isinstance(docs, types.GeneratorType):
+        doc_n = len(docs) 
+
+    kw2doc_m = lil_matrix((len(keywords), doc_n))
+    
+    for doc_ind, (doc_id, doc) in enumerate(docs):
+        doc_ind_map[doc_id] = doc_ind #save the which row is doc associated with
+        for kw in doc:
+            kw_ind = kw_ind_map[kw.lower()]
+            kw2doc_m[kw_ind, doc_ind] += 1
+
+    doc2kw_m = kw2doc_m.T #just transpose it
+    if tfidf:
+        print 'tfidf...'
+        transformer = TfidfTransformer()
+        doc2kw_m = transformer.fit_transform(doc2kw_m)
+        kw2doc_m = transformer.fit_transform(kw2doc_m)
+        print 'tfidf done'
+        
+    return {"kw_ind": kw_ind_map,
+            "doc_ind": doc_ind_map,
+            "doc2kw_m": doc2kw_m, 
+            "kw2doc_m": kw2doc_m}
+
+def kw2doc_matrix(table="brown", keywords = None, tfidf=True, refresh = False):
     """
     get keyword to document matrices as well as the transpose
     if tfidf is True, perform tfidf on both matrix
@@ -50,50 +99,24 @@ def kw2doc_matrix(table="brown", tfidf=True, refresh = False):
         print 'linrel matrix pickle NOT exist, generate it'
         all_keywords= get_all_keywords(table)
 
-        #mapping from keyword to index
-        kw_ind_map = dict((kw, ind) for ind, kw in enumerate(all_keywords))
-
+        
         #get the number of documents
         conn = MySQLdb.connect(**MYSQL_CONN_SETTING)
         x = conn.cursor()
         x.execute("SELECT count(id) from %s;" %table)
 
         doc_c = x.fetchone()[0]; 
-        #preallocate the space for doc isd
-        #mapping from doc ind to the matrix row index
-        doc_id2row = {}
-
-        kw_c = len(all_keywords)
-        print kw_c, "x", doc_c, "matrix"
-
-        kw2doc_m = lil_matrix((kw_c, doc_c))
 
         #generate the matrix
         x = conn.cursor()
         x.execute("SELECT id, processed_keywords from %s;" %table)
         
-        print 'loading matrix..'
-        for ind, r in enumerate(x):
-            doc_id = r[0]
-            doc_id2row[doc_id] = ind #save the which row is doc associated with
-            for kw in loads(r[1]):
-                kdoc_id = kw_ind_map[kw.lower()]
-                kw2doc_m[kdoc_id, ind] += 1
-        print 'loading matrix done'
-        doc2kw_m = kw2doc_m.T #just transpose it
+        return_val = gen_kw_doc_matrix(x, doc_n = doc_c, keywords = all_keywords)
         
-        if tfidf:
-            print 'tfidf...'
-            transformer = TfidfTransformer()
-            doc2kw_m = transformer.fit_transform(doc2kw_m)
-            kw2doc_m = transformer.fit_transform(kw2doc_m)
-            print 'tfidf done'
-        return_val = {"kw_ind": kw_ind_map,
-                      "doc_ind": doc_id2row,
-                      "doc2kw_m": doc2kw_m, 
-                      "kw2doc_m": kw2doc_m}
         dump(return_val, open(pic_path, 'w'))
         return return_val
     
 if __name__ == "__main__":
-    d_ = kw2doc_matrix()
+    d = test_matrix()
+    print d['doc2kw_m'].toarray()
+    print d['kw_ind']
