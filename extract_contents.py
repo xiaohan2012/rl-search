@@ -11,7 +11,9 @@ def main(offset, limit, extractor_name = 'ArticleExtractor'):
     sel_conn = MySQLdb.connect(**MYSQL_CONN_SETTING)
 
     sel_c = sel_conn.cursor()
-    sel_c.execute('SELECT id, uncompress(crawled_html) from webpage where !isnull(crawled_html) and length(crawled_html) > 0 and isnull(processed_content) limit %s offset %s ', (limit, offset,))
+    print 'SELECT ING...'
+    print 'SELECT id, uncompress(crawled_html) from webpage where !isnull(crawled_html) and length(crawled_html) > 0 and isnull(processed_content) and id >= %d and id < %d ' %(offset, offset + limit)
+    sel_c.execute('SELECT id, uncompress(crawled_html) from webpage where !isnull(crawled_html) and length(crawled_html) > 0 and isnull(processed_content) and id >= %s and id < %s ', (offset, offset + limit))
         
     upd_c = upd_conn.cursor()
     
