@@ -34,8 +34,8 @@ def main(offset, limit, extractor_name = 'ArticleExtractor'):
             print id
             extractor = Extractor(extractor=extractor_name, html=html)
             content = extractor.getText()
-        except UnicodeDecodeError:
-            print 'unicode decode error occurred..'
+        except:
+            print 'Some error occurred..'
             
         upd_c.execute('UPDATE webpage set processed_content = %s where id=%s', (content, id))
         counter += 1
