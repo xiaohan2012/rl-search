@@ -98,6 +98,32 @@ def mbrain_data2db(filename, category = "editorial", lang = "en", table="webpage
     conn.commit()
     conn.close()
 
+def update_by_url(filename, 
+                  fields = ["title","category","contentLanguage","publishDate","authorName","region","plainTextContent"], 
+                  category = "editorial", lang = "en", table="webpage"):
+    conn = MySQLdb.connect(**MYSQL_CONN_SETTING)
+    x = conn.cursor()
+    
+    assignment_sql_string = ', '.join(["%s=%%s" %field for field in fields])
+    sql_tmpl = "UPDATE %s set %s WHERE url=%%s" %(table, assignment_sql_string)
+    
+    counter = 0
+    fields.append('url')
+    with open(filename) as f:
+        for line in f:
+            page_json = loads(line)
+            if page_json.has_key("contentLanguage") and page_json["contentLanguage"] == lang and \
+               page_json.has_key("category") and page_json["category"] == category:
+                
+                x.execute(sql_tmpl,
+                          (page_json.get(field) for field in fields))
+                counter += 1
+                if counter % 1000 == 0:
+                    print "%d updated" %(counter)
+                    conn.commit()
+    conn.commit()
+    conn.close()
+
 def count_by_condition(path, condition):
     counter = 0
     for page in get_page_json(path):

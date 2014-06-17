@@ -46,7 +46,7 @@ class Application(tornado.web.Application):
         tornado.web.Application.__init__(self, handlers, **settings)
         self.db = torndb.Connection("%s:%s" % (options.mysql_host, options.mysql_port), options.mysql_database, options.mysql_user, options.mysql_password)
         self.redis = redis.StrictRedis(host=options.redis_host, port=options.redis_port, db=options.redis_db)
-        self.linrel_dict = test_matrix() #kw2doc_matrix()
+        self.linrel_dict = kw2doc_matrix(table="test", keyword_field_name = 'keywords') #test_matrix() #kw2doc_matrix()
     
 class RecommandHandler(BaseHandler):
     
@@ -137,7 +137,58 @@ class RecommandHandler(BaseHandler):
         """
         return [{'id': 1, 'title': 'key-value storage database', 'author': 'unknown', 'keywords': ['database', 'key-value', 'in-memory']},
                 {'id': 2, 'title': 'Asynchronous Python Web framework', 'author': 'unknown', 'keywords': ['python', 'web', 'framework']}]
-
+    
+    def get_kw2doc_weight(self, kw_idx_in_K, doc_idx_in_K):
+        """
+        get the kw -> list of doc(whose indices are in the doc_idx_in_K) weights returned to the frontend
+        Return:
+        [
+        {'kw1': [{'doc_id1': 'weight1'}, {'doc_id2': 'weight2'}, ...]},
+        ...
+        ]
+        """
+        submatrix = self.kw2doc_m[kw_idx_in_K, :]
+        data = []
+        for row_ind, kw_ind in enumerate(kw_idx_in_K):
+            #find the non zero columns
+            row = submatrix[row_ind, :]
+            doc_row_ind, doc_col_ind = np.nonzero(row)
+            weights = [row[row_ind, col_ind] for row_ind, col_ind in zip([0] * len(doc_idx_in_K), doc_idx_in_K)]
+            
+            #map index to doc id
+            doc_ids = [self.doc_ind_r[ind] for ind in doc_idx_in_K]
+            
+            #get the td-idf value
+            value = [{'doc_id': doc_id, 'weight': weight} 
+                     for doc_id, weight in zip(doc_ids, weights)]
+            
+            data.append({'kw_id': self.kw_ind_r[kw_ind],
+                         'doc_weights': value})
+        return data
+        
+    def get_doc2kw_weight(self, doc_idx_in_K):
+        """
+        get the doc -> list of kw weights returned to the frontend
+        """
+        submatrix = self.doc2kw_m[doc_idx_in_K, :]
+        data = []
+        for row_ind, doc_ind in enumerate(doc_idx_in_K):
+            #find the non zero columns
+            row = submatrix[row_ind, :]
+            kw_row_ind, kw_col_ind = np.nonzero(row)
+            weights = [row[row_ind, col_ind] for row_ind, col_ind in zip(kw_row_ind, kw_col_ind)]
+            
+            #map index to doc id
+            kw_ids = [self.kw_ind_r[ind] for ind in kw_col_ind]
+            
+            #get the td-idf value
+            value = [{'kw_id': kw_id, 'weight': weight} 
+                     for kw_id, weight in zip(kw_ids, weights)]
+            
+            data.append({'doc_id': self.doc_ind_r[doc_ind],
+                         'kw_weights': value})
+        return data
+        
     def post(self):
         try:
             data = tornado.escape.json_decode(self.request.body) 
@@ -155,14 +206,18 @@ class RecommandHandler(BaseHandler):
             #generate some kws and documents
             keywords = self.get_init_kws()
             documents = self.get_init_docs()
-
+            kw_idx = [self.kw_ind[kw['id']] for kw in keywords]
+            doc_idx = [self.doc_ind[doc['id']] for doc in documents]
+            print 'doc_idx:', doc_idx
             #save it to database
             self.session_doc_ids =  [doc['id'] for doc in documents]
             self.session_kw_ids = [kw['id'] for kw in keywords]
 
             self.json_ok({'session_id': self.session_id,
-                          'keywords': keywords, 
-                          'documents': documents})
+                          'kws': keywords, 
+                          'docs': documents,
+                          'kw2doc_weight': self.get_kw2doc_weight(kw_idx, doc_idx),
+                          'doc2kw_weight': self.get_doc2kw_weight(doc_idx)})
 
         else:#else we are in a session
             #continue a session
@@ -201,7 +256,7 @@ class RecommandHandler(BaseHandler):
                 
                 kw_n, doc_n = self.kw2doc_m.shape
                 mu = 1; c = 0.2
-                KW_RECOMMEND_N = 2; DOC_RECOMMEND_N = 4
+                KW_RECOMMEND_N = 2; DOC_RECOMMEND_N = 2
                 
                 #for each keyword i, do a_i = k_i*(K' * K + \mu * I)^{-1} * K'
                 a_kt = self.kw2doc_m * (K_t.T * K_t + mu * eye(doc_n, doc_n)).I * K_t.T
@@ -221,9 +276,25 @@ class RecommandHandler(BaseHandler):
                 
                 #do the linrel to get the recommandations,
                 #select the top n for keywords and documents respectively                
+                kw_idx = [ind for ind, _ in kw_scores[:KW_RECOMMEND_N]]
+                doc_idx = [ind for ind, _ in doc_scores[:DOC_RECOMMEND_N]]
+                
+                docs = []
+                for ind, score in  doc_scores[:DOC_RECOMMEND_N]:
+                    doc = self.get_doc(self.doc_ind_r[ind])
+                    doc['score'] = score
+                    docs.append(doc)
+                    
                 self.json_ok({'session_id': self.session_id,
-                              'kw_ids': [{'id': self.kw_ind_r[ind], 'score': score} for ind, score in  kw_scores[:KW_RECOMMEND_N]],
-                              'doc_ids': [{'id': self.doc_ind_r[ind], 'score': score} for ind, score in  doc_scores[:DOC_RECOMMEND_N]]})
+                              'kws': [{'id': self.kw_ind_r[ind], 'score': score} for ind, score in  kw_scores[:KW_RECOMMEND_N]],
+                              'docs': docs,
+                              'kw2doc_weight': self.get_kw2doc_weight(kw_idx, doc_idx),
+                              'doc2kw_weight': self.get_doc2kw_weight(doc_idx)})
+                
+    def get_doc(self, doc_id):
+        row = self.db.get('SELECT id, title, keywords FROM test WHERE id=%s', doc_id)
+        row['keywords'] = tornado.escape.json_decode(row['keywords'])
+        return row
                 
 class MainHandler(BaseHandler):
     def get(self):

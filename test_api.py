@@ -11,10 +11,11 @@ req = urllib2.Request(url)
 req.add_header('Content-Type', 'application/json')
 
 response = urllib2.urlopen(req, json.dumps({}))
+res = json.loads(response.read())
+session_id = res['session_id']
 
-session_id = json.loads(response.read())['session_id']
 print 'Initialization session id.'
-print 'session_id:', session_id
+pprint(res)
 
 print 'First round:'
 
