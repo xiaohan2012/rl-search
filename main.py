@@ -25,7 +25,7 @@ define("mysql_user", default="hxiao", help="db database user")
 define("mysql_password", default="xh24206688", help="db database password")
 define("mysql_database", default="scinet3", help="db database name")
 define("redis_port", default=6379, help="redis' port", type=int)
-define("redis_host", default="127.0.0.1", help="key-value cache host")
+define("redis_host", default="ugluk", help="key-value cache host")
 define("redis_db", default="scinet3", help="key-value db")
 
 ERR_INVALID_POST_DATA = 1001

@@ -1,7 +1,7 @@
 import json, urllib2, redis
 from pprint import pprint
 
-redis = redis.StrictRedis(host="127.0.0.1", port=6379, db='scinet3')
+redis = redis.StrictRedis(host="ugluk", port=6379, db='scinet3')
 redis.flushall()
 
 
