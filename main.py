@@ -135,8 +135,7 @@ class RecommandHandler(BaseHandler):
         """
         generate some initial documents 
         """
-        return [{'id': 1, 'title': 'key-value storage database', 'author': 'unknown', 'keywords': ['database', 'key-value', 'in-memory']},
-                {'id': 2, 'title': 'Asynchronous Python Web framework', 'author': 'unknown', 'keywords': ['python', 'web', 'framework']}]
+        return [self.get_doc(1), self.get_doc(3)]
     
     def get_kw2doc_weight(self, kw_idx_in_K, doc_idx_in_K):
         """
@@ -148,7 +147,7 @@ class RecommandHandler(BaseHandler):
         ]
         """
         submatrix = self.kw2doc_m[kw_idx_in_K, :]
-        data = []
+        data = {}
         for row_ind, kw_ind in enumerate(kw_idx_in_K):
             #find the non zero columns
             row = submatrix[row_ind, :]
@@ -159,11 +158,10 @@ class RecommandHandler(BaseHandler):
             doc_ids = [self.doc_ind_r[ind] for ind in doc_idx_in_K]
             
             #get the td-idf value
-            value = [{'doc_id': doc_id, 'weight': weight} 
+            value = [{'id': doc_id, 'w': weight} 
                      for doc_id, weight in zip(doc_ids, weights)]
-            
-            data.append({'kw_id': self.kw_ind_r[kw_ind],
-                         'doc_weights': value})
+                        
+            data[self.kw_ind_r[kw_ind]] = value
         return data
         
     def get_doc2kw_weight(self, doc_idx_in_K):
@@ -171,7 +169,7 @@ class RecommandHandler(BaseHandler):
         get the doc -> list of kw weights returned to the frontend
         """
         submatrix = self.doc2kw_m[doc_idx_in_K, :]
-        data = []
+        data = {}
         for row_ind, doc_ind in enumerate(doc_idx_in_K):
             #find the non zero columns
             row = submatrix[row_ind, :]
@@ -182,13 +180,12 @@ class RecommandHandler(BaseHandler):
             kw_ids = [self.kw_ind_r[ind] for ind in kw_col_ind]
             
             #get the td-idf value
-            value = [{'kw_id': kw_id, 'weight': weight} 
+            value = [{'id': kw_id, 'w': weight} 
                      for kw_id, weight in zip(kw_ids, weights)]
             
-            data.append({'doc_id': self.doc_ind_r[doc_ind],
-                         'kw_weights': value})
+            data[self.doc_ind_r[doc_ind]] = value
         return data
-        
+
     def post(self):
         try:
             data = tornado.escape.json_decode(self.request.body) 
@@ -204,25 +201,46 @@ class RecommandHandler(BaseHandler):
             self.session_id = self.generate_session_id()
 
             #generate some kws and documents
-            keywords = self.get_init_kws()
             documents = self.get_init_docs()
-            kw_idx = [self.kw_ind[kw['id']] for kw in keywords]
+
+            #generate keywords part
+            recommended_kws = self.get_init_kws(); 
+            kw_ids = [kw['id'] for kw in recommended_kws]; recommended_kw_ids = kw_ids[:]
+            
+            assoc_keywords = [{'id': kw} for doc in documents for  kw in doc['keywords']]
+            keywords = recommended_kws
+            for akw in assoc_keywords:#add only unique keyword
+                if akw['id'] not in kw_ids:
+                    kw_ids.append(akw['id'])
+                    keywords.append(akw)
+                    
+            #indices of the keywords
+            kw_idx = [self.kw_ind[kw['id']] for kw in keywords] 
             doc_idx = [self.doc_ind[doc['id']] for doc in documents]
-            print 'doc_idx:', doc_idx
+
             #save it to database
             self.session_doc_ids =  [doc['id'] for doc in documents]
             self.session_kw_ids = [kw['id'] for kw in keywords]
 
+            #associate with weights for keywords and documents
+            kw2doc_weight = self.get_kw2doc_weight(kw_idx, doc_idx)
+            
+            print 'recommended_kw_ids: ', recommended_kw_ids
+            for kw in keywords:
+                kw['docs'] = kw2doc_weight[kw['id']]
+                kw['display'] = (kw['id'] in recommended_kw_ids)
+                
+            doc2kw_weight = self.get_doc2kw_weight(doc_idx)
+            for doc in documents:
+                doc['kws'] = doc2kw_weight[doc['id']]
+                
             self.json_ok({'session_id': self.session_id,
                           'kws': keywords, 
-                          'docs': documents,
-                          'kw2doc_weight': self.get_kw2doc_weight(kw_idx, doc_idx),
-                          'doc2kw_weight': self.get_doc2kw_weight(doc_idx)})
+                          'docs': documents})
 
         else:#else we are in a session
             #continue a session
             #try to get the feedbacks
-            print self.kw_ind
             if not kw_fb or not doc_fb:
                 self.json_fail(ERR_INVALID_POST_DATA, 'Since you are in a session, please the feedbacks for both keywords and documents')
             else:
@@ -238,11 +256,19 @@ class RecommandHandler(BaseHandler):
                 kw_fb_hist.update(kw_fb)
                 self.kw_fb_hist = kw_fb_hist
                 
-                y_kt = matrix([self.kw_fb_hist[kw_id] for kw_id in self.session_kw_ids]).T
+                #prepare the keyword feedback vector
+                print 'self.kw_fb_hist= ', self.kw_fb_hist
+                y_kt = matrix([self.kw_fb_hist.get(kw_id, 0) for kw_id in self.session_kw_ids]).T
 
+                #update document feedback
                 doc_fb_hist = self.doc_fb_hist
                 doc_fb_hist.update(doc_fb)
                 self.doc_fb_hist = doc_fb_hist
+
+                # print 'self.session_doc_ids', self.session_doc_ids
+                # print 'self.doc_fb_hist', self.doc_fb_hist
+                
+                #prepare the document feedback vector
                 y_dt = matrix([self.doc_fb_hist[doc_id] for doc_id in self.session_doc_ids]).T
 
                 print "kw ids: %s" %(repr(self.session_kw_ids))
@@ -276,20 +302,52 @@ class RecommandHandler(BaseHandler):
                 
                 #do the linrel to get the recommandations,
                 #select the top n for keywords and documents respectively                
-                kw_idx = [ind for ind, _ in kw_scores[:KW_RECOMMEND_N]]
+                top_kw_idx = [ind for ind, _ in kw_scores[:KW_RECOMMEND_N]]
                 doc_idx = [ind for ind, _ in doc_scores[:DOC_RECOMMEND_N]]
-                
-                docs = []
+
+                all_kws = set()
+                docs = []; doc2kw_weight = self.get_doc2kw_weight(doc_idx)
                 for ind, score in  doc_scores[:DOC_RECOMMEND_N]:
-                    doc = self.get_doc(self.doc_ind_r[ind])
+                    doc_id = self.doc_ind_r[ind]
+                    doc = self.get_doc(doc_id)
+                    all_kws |= set(doc['keywords']) #expand the keyword set to be transferred
                     doc['score'] = score
+                    doc['kws'] = doc2kw_weight[doc_id]
                     docs.append(doc)
                     
+                additional_kw_idx = [self.kw_ind[kw] for kw in all_kws] #keywords that are assciated with 
+                
+                all_kw_idx = list(set(top_kw_idx) | set(additional_kw_idx))
+                print 'additional_kw_idx:', additional_kw_idx
+                print 'all_kw_idx:', all_kw_idx
+                
+                #get the kws and docs and add the weights 
+                kws = []; kw2doc_weight = self.get_kw2doc_weight(all_kw_idx, doc_idx)
+                for ind, score in kw_scores[:KW_RECOMMEND_N]:
+                    kw_id = self.kw_ind_r[ind]
+                    kws.append({
+                        'id': kw_id,
+                        'score': score,
+                        'docs': kw2doc_weight[kw_id],
+                        'display': True,
+                    })
+                #add additional kws
+                for ind  in additional_kw_idx:
+                    kw_id = self.kw_ind_r[ind]
+                    kws.append({
+                        'id': kw_id,
+                        'docs': kw2doc_weight[kw_id],
+                        'display': False,
+                    })                    
+                
+                #add the new document and keyword ids to session
+                self.session_kw_ids = list(set(self.session_kw_ids) | set([kw['id'] for kw in kws]))
+                self.session_doc_ids = list(set(self.session_doc_ids) | set([doc['id'] for doc in docs]))
+                
                 self.json_ok({'session_id': self.session_id,
-                              'kws': [{'id': self.kw_ind_r[ind], 'score': score} for ind, score in  kw_scores[:KW_RECOMMEND_N]],
-                              'docs': docs,
-                              'kw2doc_weight': self.get_kw2doc_weight(kw_idx, doc_idx),
-                              'doc2kw_weight': self.get_doc2kw_weight(doc_idx)})
+                              'kws': kws,
+                              'docs': docs
+                          })
                 
     def get_doc(self, doc_id):
         row = self.db.get('SELECT id, title, keywords FROM test WHERE id=%s', doc_id)

@@ -1,9 +1,8 @@
 import json, urllib2, redis
 from pprint import pprint
 
-redis = redis.StrictRedis(host="ugluk", port=6379, db='scinet3')
-redis.flushall()
-
+# redis = redis.StrictRedis(host="ugluk", port=6379, db='test')
+# redis.flushdb()
 
 url = 'http://127.0.0.1/api/1.0/recommend'
 req = urllib2.Request(url)
@@ -24,7 +23,7 @@ req.add_header('Content-Type', 'application/json')
 
 response = urllib2.urlopen(req, json.dumps({
     'session_id': session_id,
-    'doc_fb': [{'id':1, 'score': 0.6}, {'id': 2, 'score': 0.1}],
+    'doc_fb': [{'id':1, 'score': 0.6}, {'id': 3, 'score': 0.1}],
     'kw_fb': [{'id': 'python', 'score': 0.1}, {'id': 'database', 'score': 0.6}]
 }))
 
@@ -38,7 +37,7 @@ req.add_header('Content-Type', 'application/json')
 
 response = urllib2.urlopen(req, json.dumps({
     'session_id': session_id,
-    'doc_fb': [{'id':0, 'score': 0.7}, {'id': 1, 'score': 0.7}, {'id': 5, 'score': 0.2}, {'id': 6, 'score': 0.2}],
+    'doc_fb': [{'id':1, 'score': 0.8}, {'id': 2, 'score': 0.8}],
     'kw_fb': [{'id': 'redis', 'score': 0.8}, {'id': 'database', 'score': 0.8}]
 }))
 
