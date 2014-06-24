@@ -159,7 +159,7 @@ class RecommandHandler(BaseHandler):
             
             #get the td-idf value
             value = [{'id': doc_id, 'w': weight} 
-                     for doc_id, weight in zip(doc_ids, weights)]
+                     for doc_id, weight in zip(doc_ids, weights) if weight != 0]
                         
             data[self.kw_ind_r[kw_ind]] = value
         return data
