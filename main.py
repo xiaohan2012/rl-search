@@ -34,9 +34,12 @@ define("redis_port", default=6379, help="redis' port", type=int)
 define("redis_host", default="ugluk", help="key-value cache host")
 define("redis_db", default="scinet3", help="key-value db")
 
-define("table", default='corpus_2000', help="db table to be used")
+define("table", default='john', help="db table to be used")
 define("recom_kw_num", default=5, help="recommended keyword number at each iter")
 define("recom_doc_num", default=10, help="recommended document number at each iter")
+define("random_kw", default=True, help="Random keyword intialization or not")
+define("random_doc", default=True, help="Random document intialization or not")
+define("refresh_pickle", default=False, help="refresh pickle or not")
 
 ERR_INVALID_POST_DATA = 1001
 
@@ -56,7 +59,7 @@ class Application(tornado.web.Application):
         tornado.web.Application.__init__(self, handlers, **settings)
         self.db = torndb.Connection("%s:%s" % (options.mysql_host, options.mysql_port), options.mysql_database, options.mysql_user, options.mysql_password)
         self.redis = redis.StrictRedis(host=options.redis_host, port=options.redis_port, db=options.redis_db)
-        self.linrel_dict = kw2doc_matrix(table="corpus_2000", keyword_field_name = 'keywords') #test_matrix() #kw2doc_matrix()
+        self.linrel_dict = kw2doc_matrix(table=options.table, keyword_field_name = 'keywords', refresh = options.refresh_pickle) #test_matrix() #kw2doc_matrix()
     
 class RecommandHandler(BaseHandler):
     
@@ -138,7 +141,7 @@ class RecommandHandler(BaseHandler):
         """
         generate some initial keywords 
         """
-        if kwargs.has_key('random'):
+        if kwargs.has_key('random') and kwargs['random']:
             return [{'id': kw}
                     for kw in random.sample(self.kw_ind.keys(), options.recom_kw_num)]
         else:
@@ -149,7 +152,7 @@ class RecommandHandler(BaseHandler):
         """
         generate some initial documents 
         """
-        if kwargs.has_key('random'):
+        if kwargs.has_key('random') and kwargs['random']:
             return [self.get_doc(id) for id in random.sample(range(1,501), options.recom_doc_num)]
         else:
             return [self.get_doc(1), self.get_doc(3)]
@@ -219,11 +222,11 @@ class RecommandHandler(BaseHandler):
             
             print 'recommending documents'
             #generate some kws and documents
-            documents = self.get_init_docs(random = True)
+            documents = self.get_init_docs(random = options.random_doc)
 
             print 'recommending keywords'
             #generate keywords part
-            recommended_kws = self.get_init_kws(random=True); 
+            recommended_kws = self.get_init_kws(random=options.random_kw); 
             kw_ids = [kw['id'] for kw in recommended_kws]; recommended_kw_ids = kw_ids[:]
             
             assoc_keywords = [{'id': kw} for doc in documents for  kw in doc['keywords']]
@@ -320,8 +323,6 @@ class RecommandHandler(BaseHandler):
                 kw_scores = sorted(enumerate(np.array(kw_scores.T).tolist()[0]), key = lambda (kw_id, score): score, reverse = True)
                 
                 #print "kw_scores: %s"  %repr([(self.kw_ind_r[ind], score) for ind,score in kw_scores])                
-                
-
                 print 'calculating the scores for documents'
                 #for each document i, do a_i = d_i * (D' * D + \mu * I)^{-1} * D'
                 
@@ -339,7 +340,7 @@ class RecommandHandler(BaseHandler):
                 print 'prepare for docs and the weight'
                 #do the linrel to get the recommandations,
                 #select the top n for keywords and documents respectively                
-                top_kw_idx = [ind for ind, _ in kw_scores[:options.recom_kw_num]]
+                top_kw_idx = [ind for ind, _ in kw_scores[:options.recom_kw_num]]; top_kws = [self.kw_ind_r[ind] for ind in top_kw_idx]
                 doc_idx = [ind for ind, _ in doc_scores[:options.recom_doc_num]]
 
                 all_kws = set()
@@ -352,7 +353,8 @@ class RecommandHandler(BaseHandler):
                     doc['kws'] = doc2kw_weight[doc_id]
                     docs.append(doc)
                     
-                additional_kw_idx = [self.kw_ind[kw] for kw in all_kws] #keywords that are assciated with 
+                additional_kw_idx = [self.kw_ind[kw] 
+                                     for kw in (all_kws - set(top_kws))] #keywords that 1, are assciated with documents 2, not included in the top hits
                 
                 all_kw_idx = list(set(top_kw_idx) | set(additional_kw_idx))
                 

@@ -6,7 +6,7 @@ function Engine(config){
     this.run = function(data){
 	fb_rule.propagate_data(data['kws'], data['docs'])
 	fb_rule.associate_doc_kw();
-	
+
 	kw_renderer.render(data['kws'])
 	doc_renderer.render(data['docs']);
     }
@@ -30,6 +30,10 @@ function FeedbackRule(options){
     DEFAULT_DOC_ALPHA = 0.7;
     var self = this;       
     
+    self.reset = function(){
+	delete self['kws'];
+	delete self['docs'];
+    }
     self.propagate_data = function(kws, docs){
 	self.kws = kws;
 	kws.forEach(function(kw){
@@ -118,10 +122,15 @@ function FeedbackRule(options){
 	    kw['docs'] = self.docs.filter(function(doc){return doc_ids.indexOf(doc['id']) >= 0});
 	});
 	
+	console.log('self.kws=', self.kws);
 	self.docs.forEach(function(doc){
 	    var kw_ids = doc['kws'].map(function(kw){return kw['id']});
+	    console.log('kw_ids=', kw_ids);	    
 	    doc['kws'] = self.kws.filter(function(kw){ return kw_ids.indexOf(kw['id']) >= 0});
+	    console.log('kw["kws"]', doc['kws']);
+
 	});
+	console.log("self.docs=", self.docs);
     }
 }
 
@@ -131,7 +140,7 @@ function KwRenderer(kw_list_dom, doc_list_dom, config){
     var clicked_off = config['clicked.off'];    
     
     this.empty_html = function(){
-	kw_list_dom.find('.kw').remove();
+	kw_list_dom.find('.kw').remove();	
     }
     
     this.render = function(kws){
@@ -215,7 +224,6 @@ function DocRenderer(doc_list_dom, kw_list_dom, config){
 		    }
 		    e.stopPropagation();
 		})
-
 		doc_html.find('ul.kws').append(kw_html);
 		
 	    });

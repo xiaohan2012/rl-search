@@ -303,7 +303,7 @@ $(document).ready(function() {
 	    async: false,
 	    success: function(res) {
 		if(res.errcode === 0){
-		    //$('#responseHtml').html(JSON.stringify(res, undefined, 4));
+		    $('#responseHtml').html(JSON.stringify(res, undefined, 4));
 		    e.run({
 			'kws': res['kws'], 
 			'docs': res['docs']
