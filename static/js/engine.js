@@ -217,8 +217,9 @@ function DocRenderer(doc_list_dom, kw_list_dom, config){
 		})
 
 		doc_html.find('ul.kws').append(kw_html);
+		
 	    });
-	    
+	    doc_html.find('ul.kws').append('<div style="clear:both;"></div>');
 	    doc_html.on('click', function(e){
 		var clicked = doc_html.data('clicked');
 		if(!clicked){

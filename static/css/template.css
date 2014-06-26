@@ -15,7 +15,7 @@ ul li:hover{
 }
 
 #documentsWrapper ul.kws li{
-    display: inline;
+    float: left;
     margin-right: 10px;
 }
 

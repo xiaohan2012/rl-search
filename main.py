@@ -11,12 +11,18 @@ from tornado.options import define, options
 import uuid
 import pickle
 
-
+import random
 import numpy as np
-from numpy import matrix,eye
+from numpy import matrix
+
+from scipy.sparse import eye, csr_matrix
+from scipy.sparse.linalg import inv
+
 
 from base_handlers import BaseHandler
 from data import kw2doc_matrix, test_matrix
+
+random.seed(123456)
 
 define("port", default=8000, help="run on the given port", type=int)
 define("mysql_port", default=3306, help="db's port", type=int)
@@ -27,6 +33,10 @@ define("mysql_database", default="scinet3", help="db database name")
 define("redis_port", default=6379, help="redis' port", type=int)
 define("redis_host", default="ugluk", help="key-value cache host")
 define("redis_db", default="scinet3", help="key-value db")
+
+define("table", default='corpus_2000', help="db table to be used")
+define("recom_kw_num", default=5, help="recommended keyword number at each iter")
+define("recom_doc_num", default=10, help="recommended document number at each iter")
 
 ERR_INVALID_POST_DATA = 1001
 
@@ -46,7 +56,7 @@ class Application(tornado.web.Application):
         tornado.web.Application.__init__(self, handlers, **settings)
         self.db = torndb.Connection("%s:%s" % (options.mysql_host, options.mysql_port), options.mysql_database, options.mysql_user, options.mysql_password)
         self.redis = redis.StrictRedis(host=options.redis_host, port=options.redis_port, db=options.redis_db)
-        self.linrel_dict = kw2doc_matrix(table="test", keyword_field_name = 'keywords') #test_matrix() #kw2doc_matrix()
+        self.linrel_dict = kw2doc_matrix(table="corpus_2000", keyword_field_name = 'keywords') #test_matrix() #kw2doc_matrix()
     
 class RecommandHandler(BaseHandler):
     
@@ -128,14 +138,21 @@ class RecommandHandler(BaseHandler):
         """
         generate some initial keywords 
         """
-        return [{'id': 'python'}, 
-                {'id': 'database'}]
+        if kwargs.has_key('random'):
+            return [{'id': kw}
+                    for kw in random.sample(self.kw_ind.keys(), options.recom_kw_num)]
+        else:
+            return [{'id': 'python'}, 
+                    {'id': 'database'}]
 
     def get_init_docs(self, **kwargs):
         """
         generate some initial documents 
         """
-        return [self.get_doc(1), self.get_doc(3)]
+        if kwargs.has_key('random'):
+            return [self.get_doc(id) for id in random.sample(range(1,501), options.recom_doc_num)]
+        else:
+            return [self.get_doc(1), self.get_doc(3)]
     
     def get_kw2doc_weight(self, kw_idx_in_K, doc_idx_in_K):
         """
@@ -199,12 +216,14 @@ class RecommandHandler(BaseHandler):
         if not self.session_id:         #if no session id, render index page
             print 'start a session..'
             self.session_id = self.generate_session_id()
-
+            
+            print 'recommending documents'
             #generate some kws and documents
-            documents = self.get_init_docs()
+            documents = self.get_init_docs(random = True)
 
+            print 'recommending keywords'
             #generate keywords part
-            recommended_kws = self.get_init_kws(); 
+            recommended_kws = self.get_init_kws(random=True); 
             kw_ids = [kw['id'] for kw in recommended_kws]; recommended_kw_ids = kw_ids[:]
             
             assoc_keywords = [{'id': kw} for doc in documents for  kw in doc['keywords']]
@@ -221,7 +240,8 @@ class RecommandHandler(BaseHandler):
             #save it to database
             self.session_doc_ids =  [doc['id'] for doc in documents]
             self.session_kw_ids = [kw['id'] for kw in keywords]
-
+            
+            print 'generating kw2doc weight'
             #associate with weights for keywords and documents
             kw2doc_weight = self.get_kw2doc_weight(kw_idx, doc_idx)
             
@@ -230,6 +250,7 @@ class RecommandHandler(BaseHandler):
                 kw['docs'] = kw2doc_weight[kw['id']]
                 kw['display'] = (kw['id'] in recommended_kw_ids)
                 
+            print 'generating doc2kw weight..'
             doc2kw_weight = self.get_doc2kw_weight(doc_idx)
             for doc in documents:
                 doc['kws'] = doc2kw_weight[doc['id']]
@@ -237,13 +258,13 @@ class RecommandHandler(BaseHandler):
             self.json_ok({'session_id': self.session_id,
                           'kws': keywords, 
                           'docs': documents})
-
+            
         else:#else we are in a session
             #continue a session
             #try to get the feedbacks
             if not kw_fb or not doc_fb:
                 self.json_fail(ERR_INVALID_POST_DATA, 'Since you are in a session, please the feedbacks for both keywords and documents')
-            else:
+            else:                
                 #get the K_t(kw2doc) and D_t(doc2kw) matrix
                 kw_idx_in_K = [self.kw_ind[kw_id] for kw_id in self.session_kw_ids]
                 K_t = self.kw2doc_m[kw_idx_in_K, :]
@@ -268,6 +289,7 @@ class RecommandHandler(BaseHandler):
                 # print 'self.session_doc_ids', self.session_doc_ids
                 # print 'self.doc_fb_hist', self.doc_fb_hist
                 
+                print 'preparing the document feedback vector'
                 #prepare the document feedback vector
                 y_dt = matrix([self.doc_fb_hist[doc_id] for doc_id in self.session_doc_ids]).T
 
@@ -281,33 +303,48 @@ class RecommandHandler(BaseHandler):
                 print "y_dt: %s" %(repr(y_dt))
                 
                 kw_n, doc_n = self.kw2doc_m.shape
-                mu = 1; c = 0.2
-                KW_RECOMMEND_N = 2; DOC_RECOMMEND_N = 2
-                
+                mu = 1; c = 0.2            
+                                
+                print 'calculating the scores for keywords'
                 #for each keyword i, do a_i = k_i*(K' * K + \mu * I)^{-1} * K'
-                a_kt = self.kw2doc_m * (K_t.T * K_t + mu * eye(doc_n, doc_n)).I * K_t.T
+                print 'computing the a_t for kw...'
+
+                a_kt = self.kw2doc_m * inv(K_t.T * K_t + mu * eye(doc_n, doc_n)) * K_t.T
+
+                #lower stuff to the power 2 opration on sparse matrix
+                #http://stackoverflow.com/questions/6431557/element-wise-power-of-scipy-sparse-matrix
+                a_kt_2powered = a_kt.copy()
+                a_kt_2powered.data **= 2
                 
-                kw_scores = a_kt * y_kt + np.sqrt(np.sum(np.power(a_kt, 2), 1)) * c / 2
+                kw_scores = a_kt * y_kt + csr_matrix(a_kt_2powered.sum(1)).sqrt() * c / 2
                 kw_scores = sorted(enumerate(np.array(kw_scores.T).tolist()[0]), key = lambda (kw_id, score): score, reverse = True)
                 
-                print "kw_scores: %s"  %repr([(self.kw_ind_r[ind], score) for ind,score in kw_scores])
+                #print "kw_scores: %s"  %repr([(self.kw_ind_r[ind], score) for ind,score in kw_scores])                
                 
+
+                print 'calculating the scores for documents'
                 #for each document i, do a_i = d_i * (D' * D + \mu * I)^{-1} * D'
-                a_dt = self.doc2kw_m * (D_t.T * D_t + mu * eye(kw_n, kw_n)).I * D_t.T
                 
-                doc_scores = a_dt * y_dt + np.sqrt(np.sum(np.power(a_dt, 2), 1)) * c / 2
+                a_dt = self.doc2kw_m * inv(D_t.T * D_t + mu * eye(kw_n, kw_n)) * D_t.T
+                print 'get the doc\'s scores...'
+                
+                a_dt_2powered = a_dt.copy()
+                a_dt_2powered.data **= 2
+                
+                doc_scores = a_dt * y_dt + csr_matrix(a_dt_2powered.sum(1)).sqrt() * c / 2
                 doc_scores = sorted(enumerate(np.array(doc_scores.T).tolist()[0]), key = lambda (doc_id, score): score, reverse = True)
                 
-                print "doc_scores: %s"  %repr([(self.doc_ind_r[ind], score) for ind,score in doc_scores])
+                #print "doc_scores: %s"  %repr([(self.doc_ind_r[ind], score) for ind,score in doc_scores])
                 
+                print 'prepare for docs and the weight'
                 #do the linrel to get the recommandations,
                 #select the top n for keywords and documents respectively                
-                top_kw_idx = [ind for ind, _ in kw_scores[:KW_RECOMMEND_N]]
-                doc_idx = [ind for ind, _ in doc_scores[:DOC_RECOMMEND_N]]
+                top_kw_idx = [ind for ind, _ in kw_scores[:options.recom_kw_num]]
+                doc_idx = [ind for ind, _ in doc_scores[:options.recom_doc_num]]
 
                 all_kws = set()
                 docs = []; doc2kw_weight = self.get_doc2kw_weight(doc_idx)
-                for ind, score in  doc_scores[:DOC_RECOMMEND_N]:
+                for ind, score in  doc_scores[:options.recom_doc_num]:
                     doc_id = self.doc_ind_r[ind]
                     doc = self.get_doc(doc_id)
                     all_kws |= set(doc['keywords']) #expand the keyword set to be transferred
@@ -318,12 +355,11 @@ class RecommandHandler(BaseHandler):
                 additional_kw_idx = [self.kw_ind[kw] for kw in all_kws] #keywords that are assciated with 
                 
                 all_kw_idx = list(set(top_kw_idx) | set(additional_kw_idx))
-                print 'additional_kw_idx:', additional_kw_idx
-                print 'all_kw_idx:', all_kw_idx
                 
+                print 'prepare for kws and the weight'
                 #get the kws and docs and add the weights 
                 kws = []; kw2doc_weight = self.get_kw2doc_weight(all_kw_idx, doc_idx)
-                for ind, score in kw_scores[:KW_RECOMMEND_N]:
+                for ind, score in kw_scores[:options.recom_kw_num]:
                     kw_id = self.kw_ind_r[ind]
                     kws.append({
                         'id': kw_id,
@@ -350,7 +386,8 @@ class RecommandHandler(BaseHandler):
                           })
                 
     def get_doc(self, doc_id):
-        row = self.db.get('SELECT id, title, keywords FROM test WHERE id=%s', doc_id)
+        sql_temp = 'SELECT id, title, keywords FROM %s WHERE id=%%s' %options.table
+        row = self.db.get(sql_temp, doc_id)
         row['keywords'] = tornado.escape.json_decode(row['keywords'])
         return row
                 

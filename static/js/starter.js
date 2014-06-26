@@ -104,9 +104,15 @@ var fb_rule =
 	    }).reduce(function(acc, val){
 		return acc + val;
 	    }, 0);
+	    
 	    //weighted sum
-	    return this.alpha * this._fb_from_itself + 
-		(1 - this.alpha) * fb_from_doc_sum / this._doc_weight_sum;
+	    if(this._doc_weight_sum == 0){ //no doc are associated with it
+		return this.alpha * this._fb_from_itself;
+	    }
+	    else{
+		return this.alpha * this._fb_from_itself + 
+		    (1 - this.alpha) * fb_from_doc_sum / this._doc_weight_sum;
+	    }
 	},    
 	'doc_get_feedback': function(){
 	    var fb_from_primary_kws_sum = $.map(this._fb_from_primary_kws, function(fb){
@@ -121,21 +127,26 @@ var fb_rule =
 		return acc + val;
 	    }, 0);
 	    
-	    //weighted sum
-	    return (this.alpha * fb_from_its_kws_sum + 
-		(1 - this.alpha) * fb_from_primary_kws_sum) / this._kw_weight_sum;
+	    
+	    if(this._kw_weight_sum == 0){ //no kw are associated with it
+		return this.alpha * fb_from_its_kws_sum;
+	    }
+	    else{
+		//weighted sum
+		return (this.alpha * fb_from_its_kws_sum + 
+			(1 - this.alpha) * fb_from_primary_kws_sum) / this._kw_weight_sum;
+	    }
+	    
 	}
     });
 
 var kw_renderer = new KwRenderer($('#keywordsWrapper>ul'), $('#documentsWrapper>ul'), {
-    'get_kw_html': function(options){
+    'get_kw_html': function(){
 	var kw = this;
 	var classes = "";
-	
-	if(options != undefined){
-	    classes = options['classes'] || "";
+	if(!kw['display']){
+	    classes = 'text-muted';
 	}
-	
 	var score_str = ':<span class="feedback">' + (kw['score'] == undefined ? '0' : kw['score'].toFixed(2)) + '</span>';
 	var html = '<li class="kw ' +  classes + '"><h3>' + kw['id'] + score_str + '</h3></li>'
 	return $(html);
@@ -292,7 +303,7 @@ $(document).ready(function() {
 	    async: false,
 	    success: function(res) {
 		if(res.errcode === 0){
-		    $('#responseHtml').html(JSON.stringify(res, undefined, 4));
+		    //$('#responseHtml').html(JSON.stringify(res, undefined, 4));
 		    e.run({
 			'kws': res['kws'], 
 			'docs': res['docs']

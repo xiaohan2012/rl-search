@@ -101,6 +101,7 @@ def gen_kw_doc_matrix(docs, keywords = None, doc_n = None, tfidf=True):
             kw_ind = kw_ind_map[kw.lower()]
             kw2doc_m[kw_ind, doc_ind] += 1
 
+    kw2doc_m = kw2doc_m.tocsr() #to Compressed Sparse Column format for faster row indexing and arithmatic operation    
     doc2kw_m = kw2doc_m.T #just transpose it
     if tfidf:
         print 'tfidf...'
@@ -108,7 +109,8 @@ def gen_kw_doc_matrix(docs, keywords = None, doc_n = None, tfidf=True):
         doc2kw_m = transformer.fit_transform(doc2kw_m)
         kw2doc_m = transformer.fit_transform(kw2doc_m)
         print 'tfidf done'
-        
+    
+
     return {"kw_ind": kw_ind_map,
             "doc_ind": doc_ind_map,
             "doc2kw_m": doc2kw_m, 
@@ -119,7 +121,7 @@ def kw2doc_matrix(table="brown", keyword_field_name = 'processed_keywords', keyw
     get keyword to document matrices as well as the transpose
     if tfidf is True, perform tfidf on both matrix
     """
-    pic_path = 'pickles/linrel_matrix.pic'
+    pic_path = 'pickles/%s_linrel_matrix.pic' %table
     if os.path.exists(pic_path) and not refresh:
         print 'linrel matrix pickle exists, load it'
         return load(open(pic_path))
