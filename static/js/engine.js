@@ -10,12 +10,25 @@ function Engine(config){
 	kw_renderer.render(data['kws'])
 	doc_renderer.render(data['docs']);
     }
+
+    this.kw_fb = function(){
+	return fb_rule.kw_fb();
+    }
+
+    this.doc_fb = function(){
+	return fb_rule.doc_fb();
+    }
+
+    this.reset = function(){
+	kw_renderer.empty_html();
+	doc_renderer.empty_html();
+    }
 }
 
 function FeedbackRule(options){
     DEFAULT_KW_ALPHA = 0.7;
     DEFAULT_DOC_ALPHA = 0.7;
-    var self = this;
+    var self = this;       
     
     self.propagate_data = function(kws, docs){
 	self.kws = kws;
@@ -29,7 +42,7 @@ function FeedbackRule(options){
 	    kw['feedback_from_itself'] = function(feedback){
 		options['kw_feedback_from_itself'].call(kw, feedback);
 	    };
-	    	    
+	    
 	    kw['feedback_from_doc'] = options['kw_feedback_from_doc'];
 	    kw['feedback'] = function(number){
 		//if number given, this sets the feedback
@@ -58,8 +71,11 @@ function FeedbackRule(options){
 	docs.forEach(function(doc){
 	    var alpha = options['doc_alpha'] || DEFAULT_DOC_ALPHA;
 	    options['doc.init'].call(doc, alpha);
-	    doc['feedback_from_kw'] = function(kw, feedback){
-		options['doc_feedback_from_kw'].call(doc, kw, feedback);
+	    doc['feedback_from_primary_kw'] = function(kw, feedback){
+		options['doc_feedback_from_primary_kw'].call(doc, kw, feedback);
+	    };
+	    doc['feedback_from_its_kw'] = function(kw, feedback){
+		options['doc_feedback_from_its_kw'].call(doc, kw, feedback);
 	    };
 	    doc['feedback_from_itself'] = function(feedback){
 		options['doc_feedback_from_itself'].call(doc, feedback);
@@ -76,6 +92,24 @@ function FeedbackRule(options){
 		}
 	    }
 	});
+
+	self.kw_fb = function(){
+	    var fb = []
+	    self.kws.forEach(function(kw){
+		fb.push({'id': kw['id'], 
+			 'score': kw.feedback()});	    
+	    });
+	    return fb;
+	}
+
+	self.doc_fb = function(){
+	    var fb = []
+	    self.docs.forEach(function(doc){
+		fb.push({'id': doc['id'], 
+			 'score': doc.feedback()});	    
+	    });
+	    return fb;
+	}
     }
 
     self.associate_doc_kw = function(){//two way binding(cyclic)
@@ -95,7 +129,11 @@ function KwRenderer(kw_list_dom, doc_list_dom, config){
     var get_kw_html = config['get_kw_html'];
     var clicked_on = config['clicked.on'];
     var clicked_off = config['clicked.off'];    
-        
+    
+    this.empty_html = function(){
+	kw_list_dom.find('.kw').remove();
+    }
+    
     this.render = function(kws){
 	function get_indoc_kw_htmls(kw){
 	    //get the keyword dom object associated with the primary keyword
@@ -144,10 +182,13 @@ function DocRenderer(doc_list_dom, kw_list_dom, config){
     var doc_clicked_on = config['doc_clicked_on'];
     var doc_clicked_off = config['doc_clicked_off'];
     
-
+    this.empty_html = function(){
+	doc_list_dom.find('.doc').remove();
+    }
+    
     this.render = function(docs, kws){
 	function get_primary_kw_html(kw){
-	    return kw_list_dom.filter(function(idx, dom){
+	    return kw_list_dom.find('.kw').filter(function(idx, dom){
 		return $(dom).data('id') == kw['id'];
 	    });
 	}
@@ -181,11 +222,21 @@ function DocRenderer(doc_list_dom, kw_list_dom, config){
 	    doc_html.on('click', function(e){
 		var clicked = doc_html.data('clicked');
 		if(!clicked){
-		    doc_clicked_on.call(this, e, doc, doc_html.find('.kw'), kws);
+		    doc_clicked_on.call(this, e, doc, 
+					doc_html.find('.kw'),
+					doc.kws.map(function(kw){
+					    return get_primary_kw_html(kw);
+					}),
+					doc.kws);
 		    doc_html.data('clicked', true);
 		}
 		else{
-		    doc_clicked_off.call(this, e, doc, doc_html.find('.kw'), kws);
+		    doc_clicked_off.call(this, e, doc, 
+					doc_html.find('.kw'),
+					doc.kws.map(function(kw){
+					    return get_primary_kw_html(kw);
+					}),
+					doc.kws);
 		    doc_html.data('clicked', false);
 		}
 	    });

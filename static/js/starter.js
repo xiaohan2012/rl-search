@@ -38,13 +38,13 @@ var fb_rule =
 	    
 	    self._kw2weight = {};
 	    
-	    self._fb_from_its_kw = {};//fb from keyword under it
-	    self._fb_from_primary_kw = {}; //fb from keyword in the keyword column
+	    self._fb_from_its_kws = {};//fb from keyword under it
+	    self._fb_from_primary_kws = {}; //fb from keyword in the keyword column
 	    
 	    self['kws'].forEach(function(kw){
 		self._kw2weight[kw['id']] = kw['w'];
-		self._fb_from_primary_kw[kw['id']] = 0; //initialize to 0
-		self._fb_from_its_kw[kw['id']] = 0; //initialize to 0
+		self._fb_from_primary_kws[kw['id']] = 0; //initialize to 0
+		self._fb_from_its_kws[kw['id']] = 0; //initialize to 0
 	    });
 	    
 	    self._kw_weight_sum = self.kws.map(function(kw){
@@ -59,12 +59,12 @@ var fb_rule =
 	    //set feedback for `kw` to `fb_num`
 	    kw.feedback_from_itself(fb_num);
 	    kw.docs.forEach(function(doc){
-		doc.feedback_from_kw(kw, fb_num);
+		doc.feedback_from_primary_kw(kw, fb_num);
 	    })
 	},
 	'indoc_kw_feedback': function(doc, fb_num){
 	    var kw = this;
-	    doc.feedback_from_kw(kw, fb_num);
+	    doc.feedback_from_its_kw(kw, fb_num);
 	    kw.feedback_from_doc(doc, fb_num);
 	},
 	'doc_feedback': function(fb_num){
@@ -84,10 +84,16 @@ var fb_rule =
 	    this._fb_from_docs[doc['id']] = fb * this._doc2weight[doc['id']];
 	},			 
 	'doc_feedback_from_itself': function(fb){
-	    this._fb_from_itself = fb;
+	    var self = this;
+	    self.kws.forEach(function(kw){
+		self.feedback_from_its_kw(kw, fb);
+	    })	    
 	},
-	'doc_feedback_from_kw': function(kw, fb){
-	    this._fb_from_kws[[kw['id']]] = fb * this._kw2weight[kw['id']];
+	'doc_feedback_from_its_kw': function(kw, fb){
+	    this._fb_from_its_kws[[kw['id']]] = fb * this._kw2weight[kw['id']];
+	},
+	'doc_feedback_from_primary_kw': function(kw, fb){
+	    this._fb_from_primary_kws[[kw['id']]] = fb * this._kw2weight[kw['id']];
 	},
 	/*
 	  numeric getter
@@ -100,18 +106,24 @@ var fb_rule =
 	    }, 0);
 	    //weighted sum
 	    return this.alpha * this._fb_from_itself + 
-		(1 - this.alpha) * fb_from_doc_sum;
+		(1 - this.alpha) * fb_from_doc_sum / this._doc_weight_sum;
 	},    
 	'doc_get_feedback': function(){
-	    var fb_from_kw_sum = $.map(this._fb_from_kws, function(fb, key){
+	    var fb_from_primary_kws_sum = $.map(this._fb_from_primary_kws, function(fb){
+		return fb;
+	    }).reduce(function(acc, val){
+		return acc + val;
+	    }, 0);
+
+	    var fb_from_its_kws_sum = $.map(this._fb_from_its_kws, function(fb){
 		return fb;
 	    }).reduce(function(acc, val){
 		return acc + val;
 	    }, 0);
 	    
 	    //weighted sum
-	    return this.alpha * this._fb_from_itself + 
-		(1 - this.alpha) * fb_from_kw_sum;
+	    return (this.alpha * fb_from_its_kws_sum + 
+		(1 - this.alpha) * fb_from_primary_kws_sum) / this._kw_weight_sum;
 	}
     });
 
@@ -160,8 +172,8 @@ var kw_renderer = new KwRenderer($('#keywordsWrapper>ul'), $('#documentsWrapper>
 	    doc_html.find('.feedback').text(doc.feedback().toFixed(3));
 	});	
     }
-})
-var doc_renderer= new DocRenderer($('#documentsWrapper>ul'), $('#documentsWrapper>ul'), {
+});
+var doc_renderer= new DocRenderer($('#documentsWrapper>ul'), $('#keywordsWrapper>ul'), {
     'get_doc_html': function(){
 	var doc = this;
 	var score_str = ':<span class="feedback text-danger">' + 
@@ -188,7 +200,6 @@ var doc_renderer= new DocRenderer($('#documentsWrapper>ul'), $('#documentsWrappe
 	$(this).find('.body')
 	    .addClass('label-info')
 	    .removeClass('label-default');
-	
 	primary_kw_html.find('.feedback').text(kw.feedback().toFixed(3));
 	doc_html.find('.feedback').text(doc.feedback().toFixed(3));
     },
@@ -202,18 +213,39 @@ var doc_renderer= new DocRenderer($('#documentsWrapper>ul'), $('#documentsWrappe
 	primary_kw_html.find('.feedback').text(kw.feedback().toFixed(3));
 	doc_html.find('.feedback').text(doc.feedback().toFixed(3));
     },
-    'doc_clicked_on': function(e, doc, kw_htmls, kws){
+    'doc_clicked_on': function(e, doc, kw_htmls, primary_kw_htmls, kws){
 	doc.feedback(1);
+	//high light the keyword
 	kw_htmls.find('.body')
 	    .addClass('label-info')
 	    .removeClass('label-default');
+	/****DUPLICATE OF CODE ***/
+	//update the doc feedback
+	$(this).find('.feedback').text(doc.feedback().toFixed(3));
+	
+	//update the primary keywords feedback
+	for(var i = 0; i < primary_kw_htmls.length; i++){
+	    var primary_kw_html = $(primary_kw_htmls[i]);
+	    var kw = kws[i];
+	    primary_kw_html.find('.feedback').text(kw.feedback().toFixed(3));
+	}
     },
-    'doc_clicked_off': function(e, doc, kw_htmls, kws){
+    'doc_clicked_off': function(e, doc, kw_htmls, primary_kw_htmls, kws){
 	doc.feedback(0);
 	
 	kw_htmls.find('.body')
 	    .addClass('label-default')
 	    .removeClass('label-info');
+
+	//update the doc feedback
+	$(this).find('.feedback').text(doc.feedback().toFixed(3));
+	
+	//update the primary keywords feedback
+	for(var i = 0; i < primary_kw_htmls.length; i++){
+	    var primary_kw_html = $(primary_kw_htmls[i]);
+	    var kw = kws[i];
+	    primary_kw_html.find('.feedback').text(kw.feedback().toFixed(3));
+	}
     }
 })
 
@@ -225,22 +257,59 @@ var e = new Engine({
 
 
 
-var session_id = null;
+var global_data = {
+    'session_id': null,
+};
+
 $(document).ready(function() {
-    if(session_id == null){//start a session
-	$.post('/api/1.0/recommend', function(res){
-	    if(res.errcode === 0){
-		$('#responseHtml').html(JSON.stringify(res, undefined, 4));
-		
-		e.run({
-		    'kws': res['kws'], 
-		    'docs': res['docs']
-		});
+    function one_iteration(session_id){
+	console.log('current session_id =', session_id);
+	//clean the html first
+	e.reset();
+	
+	var data = {};	
+	if(session_id == undefined || session_id == null){//start a session
+	    
+	}
+	else{//continue a new session
+	    /*
+	    'session_id': session_id,
+	    'doc_fb': [{'id':1, 'score': 0.6}, {'id': 3, 'score': 0.1}],
+	    'kw_fb': [{'id': 'python', 'score': 0.1}, {'id': 'database', 'score': 0.6}]
+	    */	   
+	    data['session_id'] = session_id;
+	    data['doc_fb'] = e.doc_fb();
+	    data['kw_fb'] = e.kw_fb();
+	}
+	
+	console.log('posting data: ', data);
+	$.ajax({
+	    url: '/api/1.0/recommend',
+	    type: 'POST',
+	    data: JSON.stringify(data),
+	    contentType: 'application/json; charset=utf-8',
+	    dataType: 'json',
+	    async: false,
+	    success: function(res) {
+		if(res.errcode === 0){
+		    $('#responseHtml').html(JSON.stringify(res, undefined, 4));
+		    e.run({
+			'kws': res['kws'], 
+			'docs': res['docs']
+		    });
+		    global_data['session_id'] = res['session_id'];
+		    console.log('new session_id=', global_data['session_id']);
+		}
 	    }
-	})
+	});	
     }
-    else{//continue a new session
-    }
+    
+    one_iteration(); //start!
+    
+    //iter!
+    $('.btn.btn-update').on('click', function(e){
+	console.log('.btn-update clicked')
+	one_iteration(global_data['session_id']);
+    })
+
 });
-
-
