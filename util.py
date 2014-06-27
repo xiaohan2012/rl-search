@@ -30,7 +30,6 @@ def import_corpus(corpus, table_name):
 
         sql_temp = "INSERT INTO %s(%s) values(%s)" %(table_name, ','.join(fields), ','.join(['%s'] * len(fields)))
         conn.execute(sql_temp, *values)
-        
 
 if __name__ == "__main__":
     # corp = pickle.load(open('pickles/corpus_2000.pickle'))
