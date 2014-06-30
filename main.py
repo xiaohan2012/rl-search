@@ -8,7 +8,7 @@ import os.path
 import torndb, redis
 from tornado.options import define, options
 
-import pickle, random
+import pickle
 
 from session import RedisRecommendationSessionHandler
 from engine import LinRelRecommender, QueryBasedRecommender
@@ -17,7 +17,6 @@ from base_handlers import BaseHandler
 from data import kw2doc_matrix, KwDocData
 from util import get_weights
 
-random.seed(123456)
 
 define("port", default=8000, help="run on the given port", type=int)
 define("mysql_port", default=3306, help="db's port", type=int)
@@ -169,12 +168,26 @@ class RecommandHandler(BaseHandler):
         self._fill_doc_weight(rec_docs)
         self._fill_kw_weight(rec_kws, rec_docs)
         
+        #get associated keywords
+        extra_kw_ids = set([kw_id
+                        for doc in rec_docs
+                        for kw_id in doc['keywords']
+                        if kw_id not in rec_kw_ids])
+        
+        extra_kws = self._get_kws(extra_kw_ids)
+        
+        for kw in extra_kws:
+            kw['display'] = False
+            kw['score'] = 0
+            
+        self._fill_kw_weight(extra_kws, rec_docs)
+        
         print 'Recommendations:'
         print 'doc_ids:', rec_doc_ids
         print 'kw_ids:', rec_kw_ids
-
+        print 'extra_kw_ids:', extra_kw_ids
         self.json_ok({'session_id': session.session_id,
-                      'kws': rec_kws,
+                      'kws': (rec_kws + extra_kws),
                       'docs': rec_docs})
                                 
 class MainHandler(BaseHandler):

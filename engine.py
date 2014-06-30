@@ -10,6 +10,8 @@ from data import KwDocData
 
 from pprint import pprint
 
+random.seed(123456)
+
 class Recommender(KwDocData):
     """
     Recommendation engine that handles the recommending stuff
@@ -159,6 +161,7 @@ class LinRelRecommender(Recommender):
         
         Return:
         the matrix row indices as well as the scores(in descending order)
+        and the sorted decomposition of the scores
         """
         def submatrix():
             idx_in_K = [id2ind_map[id] for id in ids]
@@ -172,10 +175,18 @@ class LinRelRecommender(Recommender):
         #prepare the matrices
         K_t = submatrix()
         y_t = fb_vec()
-        scores = linrel(y_t, K_t, K, mu, c) #do the linrel
+
+        scores, exploration_scores, exploitation_scores  = linrel(y_t, K_t, K, mu, c) #do the linrel
         
-        sorted_scores = sorted(enumerate(np.array(scores.T).tolist()[0]), key = lambda (id, score): score, reverse = True) #sort it
-        return sorted_scores
+        def add_index_and_sort(matrix):
+            """add the row index information and sort """
+            return sorted(enumerate(np.array(matrix.T).tolist()[0]), key = lambda (id, score): score, reverse = True)
+
+        sorted_scores =  add_index_and_sort(scores)
+        sorted_exploration_scores =  add_index_and_sort(exploration_scores)
+        sorted_exploitation_scores =  add_index_and_sort(exploitation_scores)
+        
+        return sorted_scores, sorted_exploration_scores, sorted_exploitation_scores
         
     def recommend_keywords(self, top_n, mu, c, feedbacks = None ):
         """
@@ -184,14 +195,30 @@ class LinRelRecommender(Recommender):
         if feedbacks:#if given, update
             self._session.kw_feedbacks = feedbacks
 
-        scores = self.generic_recommend(self._kw2doc_m, self._session.kw_feedbacks, self._session.kw_ids, self._kw_ind,
-                                           mu, c)
+        scores, explr_scores, explt_scores = self.generic_recommend(self._kw2doc_m, self._session.kw_feedbacks, self._session.kw_ids, self._kw_ind,
+                                                                                 mu, c)
         
+        id_with_scores = [(self._kw_ind_r[ind], score) for ind,score in scores]
+        id_with_explr_scores = [(self._kw_ind_r[ind], score) for ind,score in explr_scores]
+        id_with_explt_scores = [(self._kw_ind_r[ind], score) for ind,score in explt_scores]
         
         top_ids_with_scores = [(self._kw_ind_r[ind], score) for ind,score in scores[:top_n]]
         top_ids = [self._kw_ind_r[ind] for ind,_ in scores[:top_n]]
         
         self._session.kw_ids = top_ids #**UPDATE** feedback in session
+
+        # the history also
+        self._session.kw_score_hist = dict(id_with_scores)
+        self._session.kw_explr_hist = dict(id_with_explr_scores)
+        self._session.kw_explt_hist = dict(id_with_explt_scores) 
+        
+        print 'self._session.kw_score_hist:'
+        pprint(self._session.kw_score_hist)
+        print 'self._session.kw_explr_score_hist:'
+        pprint(self._session.kw_explr_hist)
+        print 'self._session.kw_explt_score_hist:'
+        pprint(self._session.kw_explt_hist)
+        
         return zip(*top_ids_with_scores)
         
     def recommend_documents(self, top_n, mu, c, feedbacks = None):
@@ -199,10 +226,15 @@ class LinRelRecommender(Recommender):
         return a list of document ids as well as the scores
         """
         if feedbacks:#if given, update
-            self._session.doc_feedbnacks = feedbacks
+            self._session.doc_feedbacks = feedbacks
         
-        scores = self.generic_recommend(self._doc2kw_m, self._session.doc_feedbacks, self._session.doc_ids, self._doc_ind,
-                                        mu, c)
+        scores, exploration_scores, exploitation_scores = self.generic_recommend(self._doc2kw_m, self._session.doc_feedbacks, self._session.doc_ids, self._doc_ind,
+                                                                                 mu, c)
+        
+        print 'document feedbacks: '
+        pprint(self._session.doc_feedbacks)
+        print 'documents with scores'
+        pprint([(self._doc_ind_r[ind], score) for ind,score in scores])
         
         top_ids_with_scores = [(self._doc_ind_r[ind], score) for ind, score in scores[:top_n]]
         top_ids = [self._doc_ind_r[ind] for ind, _ in scores[:top_n]]

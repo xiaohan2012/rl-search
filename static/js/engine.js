@@ -2,24 +2,32 @@ function Engine(config){
     var fb_rule = config['fb_rule'];
     var kw_renderer = config['kw_renderer'];
     var doc_renderer = config['doc_renderer'];
-    
-    this.run = function(data){
+    var self =  this;
+    self.run = function(data){
 	fb_rule.propagate_data(data['kws'], data['docs'])
 	fb_rule.associate_doc_kw();
-
+	
 	kw_renderer.render(data['kws'])
 	doc_renderer.render(data['docs']);
+
+	kw_renderer.engine = self;
+	doc_renderer.engine = self;
     }
 
-    this.kw_fb = function(){
+    self.visual_update = function(){
+	kw_renderer.visual_update()
+	doc_renderer.visual_update()
+    }
+    
+    self.kw_fb = function(){
 	return fb_rule.kw_fb();
     }
 
-    this.doc_fb = function(){
+    self.doc_fb = function(){
 	return fb_rule.doc_fb();
     }
 
-    this.reset = function(){
+    self.reset = function(){
 	kw_renderer.empty_html();
 	doc_renderer.empty_html();
     }
@@ -122,28 +130,33 @@ function FeedbackRule(options){
 	    kw['docs'] = self.docs.filter(function(doc){return doc_ids.indexOf(doc['id']) >= 0});
 	});
 	
-	console.log('self.kws=', self.kws);
 	self.docs.forEach(function(doc){
 	    var kw_ids = doc['kws'].map(function(kw){return kw['id']});
-	    console.log('kw_ids=', kw_ids);	    
 	    doc['kws'] = self.kws.filter(function(kw){ return kw_ids.indexOf(kw['id']) >= 0});
-	    console.log('kw["kws"]', doc['kws']);
-
 	});
-	console.log("self.docs=", self.docs);
     }
 }
 
 function KwRenderer(kw_list_dom, doc_list_dom, config){
     var get_kw_html = config['get_kw_html'];
+    var kw_update_html = config['kw_update_html'];
     var clicked_on = config['clicked.on'];
     var clicked_off = config['clicked.off'];    
     
-    this.empty_html = function(){
+    var renderer = this;
+    
+    renderer.empty_html = function(){
 	kw_list_dom.find('.kw').remove();	
     }
-    
-    this.render = function(kws){
+
+    renderer.visual_update = function(){
+	//do the visual update
+	$.each(kw_list_dom.find('.kw'), function(idx, html){
+	    kw_update_html.call(html)
+	});
+    }
+
+    renderer.render = function(kws){	
 	function get_indoc_kw_htmls(kw){
 	    //get the keyword dom object associated with the primary keyword
 	    return doc_list_dom.find('.kw').filter(function(idx, kw_html){
@@ -166,6 +179,7 @@ function KwRenderer(kw_list_dom, doc_list_dom, config){
 	    var html = get_kw_html.call(kw);
 	    html.data('id', kw['id']);
 	    html.data('clicked', false);
+	    html.data('obj', kw);
 	    
 	    html.on('click', function(event){
 		var clicked = html.data('clicked');
@@ -177,6 +191,7 @@ function KwRenderer(kw_list_dom, doc_list_dom, config){
 		    clicked_off.call(this, event, kw, get_indoc_kw_htmls(kw), get_assoc_doc_htmls(kw));
 		    html.data('clicked', false);
 		}
+		renderer.engine.visual_update()
 	    });
 	    kw_list_dom.append(html)
 	});
@@ -186,16 +201,31 @@ function KwRenderer(kw_list_dom, doc_list_dom, config){
 function DocRenderer(doc_list_dom, kw_list_dom, config){
     var get_doc_html = config['get_doc_html'];
     var get_dockw_html = config['get_dockw_html'];
+
+    var doc_update_html = config['doc_update_html'];
+    var kw_update_html = config['kw_update_html'];
+    
     var kw_clicked_on = config['kw_clicked_on'];
     var kw_clicked_off = config['kw_clicked_off'];
     var doc_clicked_on = config['doc_clicked_on'];
     var doc_clicked_off = config['doc_clicked_off'];
     
-    this.empty_html = function(){
+    var renderer = this;
+    renderer.empty_html = function(){
 	doc_list_dom.find('.doc').remove();
     }
     
-    this.render = function(docs, kws){
+    renderer.visual_update = function(){
+	//do the visual update
+	$.each(doc_list_dom.find('.doc'), function(idx, html){
+	    doc_update_html.call(html);
+	});
+	$.each(doc_list_dom.find('.kw'), function(idx, html){
+	    kw_update_html.call(html);
+	})
+    }
+    
+    renderer.render = function(docs, kws){
 	function get_primary_kw_html(kw){
 	    return kw_list_dom.find('.kw').filter(function(idx, dom){
 		return $(dom).data('id') == kw['id'];
@@ -205,23 +235,29 @@ function DocRenderer(doc_list_dom, kw_list_dom, config){
 	    var doc_html = get_doc_html.call(doc);
 	    doc_html.data('id', doc['id']);
 	    doc_html.data('clicked', false);
+	    doc_html.data('obj', doc);
+	    
 	    doc.kws.forEach(function(kw){
 		var kw_html = get_dockw_html.call(kw, doc);
 		//data to be saved
 		kw_html.data('id', kw['id']);
 		kw_html.data('clicked', false);
+		kw_html.data('obj', kw);
 		
 		//when it is clicked
 		kw_html.on('click', function(e){
 		    var clicked = kw_html.data('clicked');
 		    if(!clicked){
-			kw_clicked_on.call(this, e, kw, doc_html, get_primary_kw_html(kw), doc);
+			kw_clicked_on.call(this, e, kw, doc_html, get_primary_kw_html(kw), doc, doc_list_dom);
 			kw_html.data('clicked', true);
 		    }
 		    else{
-			kw_clicked_off.call(this, e, kw, doc_html, get_primary_kw_html(kw), doc);
+			kw_clicked_off.call(this, e, kw, doc_html, get_primary_kw_html(kw), doc, doc_list_dom);
 			kw_html.data('clicked', false);
 		    }
+		    //do the visual update stuff
+		    renderer.engine.visual_update();
+
 		    e.stopPropagation();
 		})
 		doc_html.find('ul.kws').append(kw_html);
@@ -248,6 +284,8 @@ function DocRenderer(doc_list_dom, kw_list_dom, config){
 					doc.kws);
 		    doc_html.data('clicked', false);
 		}
+		//do the visual update stuff
+		renderer.engine.visual_update();
 	    });
 	    doc_list_dom.append(doc_html);
 	});

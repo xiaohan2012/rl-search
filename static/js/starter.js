@@ -153,35 +153,24 @@ var kw_renderer = new KwRenderer($('#keywordsWrapper>ul'), $('#documentsWrapper>
     },
     'clicked.on': function(event, kw, indoc_kw_html, doc_htmls){
 	kw.feedback(1); //propagate feedback
-	
-	$(this).addClass('text-info')
-	    .find('.feedback').text(kw.feedback().toFixed(3));
-	
-	//style change for in doc kw
-	indoc_kw_html.find('.body').css({'text-decoration': 'underline'});
-	
-	//style change for associated doc
-	$.each(doc_htmls, function(idx, doc_html){
-	    doc_html = $(doc_html);
-	    var doc = kw.get_doc_by_id(doc_html.data('id'));
-	    doc_html.find('.feedback').text(doc.feedback().toFixed(3));
-	});
+	$(this).data('clicked', true);
+	indoc_kw_html.data('primary_clicked', true);
     },
     'clicked.off': function(event, kw, indoc_kw_html, doc_htmls){
 	kw.feedback(0);
-	//style change for primary kw
-	$(this).removeClass('text-info')
-	    .find('.feedback').text(kw.feedback().toFixed(3));
-	
-	//style change for in doc kw
-	indoc_kw_html.find('.body').css({'text-decoration': 'none'});
+	$(this).data('clicked', false);
+	indoc_kw_html.data('primary_clicked', false);
+    },
+    'kw_update_html': function(){
+	var kw = $(this).data('obj');
+	$(this).find('.feedback').text(kw.feedback().toFixed(3));
 
-	//style change for associated doc
-	$.each(doc_htmls, function(idx, doc_html){
-	    doc_html = $(doc_html);
-	    var doc = kw.get_doc_by_id(doc_html.data('id'));
-	    doc_html.find('.feedback').text(doc.feedback().toFixed(3));
-	});	
+	if($(this).data('clicked')){
+	    $(this).addClass('text-info')
+	}
+	else{
+	    $(this).removeClass('text-info')
+	}
     }
 });
 var doc_renderer= new DocRenderer($('#documentsWrapper>ul'), $('#keywordsWrapper>ul'), {
@@ -205,58 +194,60 @@ var doc_renderer= new DocRenderer($('#documentsWrapper>ul'), $('#keywordsWrapper
 		 kw['id'] +
 		 '</span>' + w_str + '</li>');
     },
-    'kw_clicked_on': function(e, kw, doc_html, primary_kw_html, doc){
-	kw.indoc_feedback(doc, 1);
+    'kw_update_html': function(){
+	var kw = $(this).data('obj');
 	
-	$(this).find('.body')
-	    .addClass('label-info')
-	    .removeClass('label-default');
-	primary_kw_html.find('.feedback').text(kw.feedback().toFixed(3));
-	doc_html.find('.feedback').text(doc.feedback().toFixed(3));
+	if($(this).data('clicked')){
+	    $(this).find('.body')
+		.addClass('label-info')
+		.removeClass('label-default');
+	}
+	else{
+	    $(this).find('.body')
+		.addClass('label-default')
+		.removeClass('label-info');	    
+	}
+	
+	if($(this).data('primary_clicked')){
+	    $(this).find('.body').css({'text-decoration': 'underline'});	
+	}
+	else{
+	    $(this).find('.body').css({'text-decoration': 'none'});	
+	}
+    },
+    'doc_update_html': function(){
+	var doc = $(this).data('obj');
+	$(this).find('.feedback').text(doc.feedback().toFixed(3));
+    },
+    'kw_clicked_on': function(e, kw, doc_html, primary_kw_html, doc, doc_list_dom){
+	kw.indoc_feedback(doc, 1);
+	$(this).data('clicked', true);
+	
+	//same keyword in other documents receive feedback also
+	$.each(doc_list_dom.find('.doc'), function(idx, doc_html){
+	    var doc = $(doc_html).data('obj');
+	    $.each($(doc_html).find('.kw'), function(_, kw_html){
+		kw_html = $(kw_html);
+		if(kw_html.data('id') == kw['id']){
+		    kw_html.data('clicked', true);
+		    kw_html.data('obj').indoc_feedback(doc, 1);
+		}
+	    });
+	})
     },
     'kw_clicked_off': function(e, kw, doc_html, primary_kw_html, doc){
 	kw.indoc_feedback(doc, 0);
-	
-	$(this).find('.body')
-	    .addClass('label-default')
-	    .removeClass('label-info');
-	
-	primary_kw_html.find('.feedback').text(kw.feedback().toFixed(3));
-	doc_html.find('.feedback').text(doc.feedback().toFixed(3));
+	$(this).data('clicked', false);
     },
     'doc_clicked_on': function(e, doc, kw_htmls, primary_kw_htmls, kws){
 	doc.feedback(1);
-	//high light the keyword
-	kw_htmls.find('.body')
-	    .addClass('label-info')
-	    .removeClass('label-default');
-	/****DUPLICATE OF CODE ***/
-	//update the doc feedback
-	$(this).find('.feedback').text(doc.feedback().toFixed(3));
-	
-	//update the primary keywords feedback
-	for(var i = 0; i < primary_kw_htmls.length; i++){
-	    var primary_kw_html = $(primary_kw_htmls[i]);
-	    var kw = kws[i];
-	    primary_kw_html.find('.feedback').text(kw.feedback().toFixed(3));
-	}
+	$(this).data('clicked', true);
+	$(this).find('.kw').data('clicked', true);
     },
     'doc_clicked_off': function(e, doc, kw_htmls, primary_kw_htmls, kws){
 	doc.feedback(0);
-	
-	kw_htmls.find('.body')
-	    .addClass('label-default')
-	    .removeClass('label-info');
-
-	//update the doc feedback
-	$(this).find('.feedback').text(doc.feedback().toFixed(3));
-	
-	//update the primary keywords feedback
-	for(var i = 0; i < primary_kw_htmls.length; i++){
-	    var primary_kw_html = $(primary_kw_htmls[i]);
-	    var kw = kws[i];
-	    primary_kw_html.find('.feedback').text(kw.feedback().toFixed(3));
-	}
+	$(this).data('clicked', false);
+	$(this).find('.kw').data('clicked', false);
     }
 })
 
@@ -316,7 +307,7 @@ $(document).ready(function() {
     }
     
     //one_iteration(); //start!
-    
+    var clicked = false;
     $('.btn.btn-search').on('click', function(event){
 	//start!
 	var query = $(this).closest('form').find('input').val();
@@ -338,10 +329,23 @@ $(document).ready(function() {
 		    });
 		    global_data['session_id'] = res['session_id'];
 		    console.log('new session_id=', global_data['session_id']);
+
+		    
+		    if(!clicked){
+			setTimeout(function(){
+			    $('#keywordsWrapper .kw:eq(0)').click();
+			    $('#documentsWrapper .doc:eq(0)').click();
+			    $('.btn.btn-update').click();
+			    console.log('clicked..');
+
+			}, 1000);
+			clicked = true;			
+		    }
+		    
 		}
 	    }
 	});
-    })
+    }).click();
     
     //iter!
     $('.btn.btn-update').on('click', function(e){

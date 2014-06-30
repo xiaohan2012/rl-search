@@ -1,5 +1,6 @@
 import pickle
 import uuid
+from collections import defaultdict
 
 class RecommendationSessionHandler(object):
     @property
@@ -33,7 +34,7 @@ class RecommendationSessionHandler(object):
     @doc_feedbacks.setter
     def doc_feedbacks(self, value):
         raise NotImplemented
-        
+    
 class RedisRecommendationSessionHandler(RecommendationSessionHandler):
     def __init__(self, conn, session_id):
         """
@@ -52,8 +53,50 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
     @classmethod
     def get_session(cls, conn, session_id=None):
         #factory method, return the session
-        return cls(conn, session_id)
-        
+        return cls(conn, session_id)    
+
+    def _dict_list_getter(self, key):
+        val = self.redis.get('session:%s:%s' %(self.session_id, key))
+        if val is None:
+            return defaultdict(list)
+        else:
+            return pickle.loads(val)
+
+    def _dict_list_setter(self, key, data):
+        """
+        `key`: the redis key
+        data: dictionary data to be incorporated into
+        generic setter for {key: list, ...} data structure
+        """
+        hist = getattr(self, key)
+        for kw, val in data.items():
+            hist[kw].append(val)
+        return self.redis.set('session:%s:%s' %(self.session_id, key), pickle.dumps(hist))
+
+    @property
+    def kw_score_hist(self):
+        return self._dict_list_getter('kw_score_hist')
+
+    @kw_score_hist.setter
+    def kw_score_hist(self, val):
+        self._dict_list_setter('kw_score_hist', val)
+
+    @property
+    def kw_explt_score_hist(self):
+        return self._dict_list_getter('kw_explt_score_hist')
+
+    @kw_explt_score_hist.setter
+    def kw_explt_score_hist(self, val):
+        self._dict_list_setter('kw_explt_score_hist', val)
+
+    @property
+    def kw_explr_score_hist(self):
+        return self._dict_list_getter('kw_explr_score_hist')
+
+    @kw_explr_score_hist.setter
+    def kw_explr_score_hist(self, val):
+        self._dict_list_setter('kw_explr_score_hist', val)
+
     @property
     def doc_ids(self):
         val = self.redis.get('session:%s:doc_ids' %self.session_id)
@@ -134,5 +177,19 @@ def test():
     s.kw_feedbacks = {'kw3': .9, 'kw2': .6}
     print s.kw_feedbacks
     
+    s.kw_score_hist = {'kw1': 0.5, 'kw2': 0.4}
+    print s.kw_score_hist
+    s.kw_score_hist = {'kw1': 0.7, 'kw2': 0.3}
+    print s.kw_score_hist
+
+    s.kw_explr_score_hist = {'kw1': 0.3, 'kw2': 0.2}
+    print s.kw_explr_score_hist
+    s.kw_explr_score_hist = {'kw1': 0.4, 'kw2': 0.1}
+    print s.kw_explr_score_hist
+
+    s.kw_explt_score_hist = {'kw1': 0.2, 'kw2': 0.2}
+    print s.kw_explt_score_hist
+    s.kw_explt_score_hist = {'kw1': 0.3, 'kw2': 0.2}
+    print s.kw_explt_score_hist
 if __name__ == "__main__":
     test()
