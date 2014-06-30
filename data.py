@@ -38,20 +38,26 @@ def get_all_keywords(table="brown", keyword_field_name = "processed_keywords", r
     return sorted(list(all_keywords))
 
 def get_test_data():
-    return [{'title': 'redis: key-value storage database (ONE)',
-             'keywords': 'redis database key-value-storage redis database redis a the the'.split()},
-            {'title': 'redis: key-value storage database (TWO)',
-             'keywords': 'redis database redis a the the'.split()},
+    return [{'title': 'redis: key-value-storage database (ONE)',
+             'keywords': 'redis database key-value-storage a the'.split()},
+            {'title': 'redis: key-value-storage database (TWO)',
+             'keywords': 'redis database a the '.split()},
             {'title': 'tornado: python  web framework(ONE)',
-             'keywords': 'tornado web python tornado a the'.split()},
+             'keywords': 'tornado web python a the'.split()},
             {'title': 'tornado: python  web framework(TWO)',
-             'keywords': 'tornado python web web python tornado a the a the'.split(),},
+             'keywords': 'tornado python web framework a the'.split()},
+            {'title': 'torndb: python mysql wrapper',
+             'keywords': 'python database torndb mysql'.split()},
+            {'title': 'pyredis: python redis wrapper',
+             'keywords': 'python database pyredis redis'.split()},
+            {'title': 'mysql: relational database',
+             'keywords': 'database database relation-database'.split()},
             {'title': 'some python page',
-             'keywords': 'python a the  the'.split(),},
+             'keywords': 'python a the'.split(),},
             {'title': 'some database page',
-             'keywords': 'database a a the'.split(),},
+             'keywords': 'database a the'.split(),},
             {'title': 'some random page',
-             'keywords': 'web a the a the'.split()}
+             'keywords': 'web a the'.split()}
     ]
     
 def insert_test_data(test_data, table = "test"):
@@ -110,7 +116,7 @@ def gen_kw_doc_matrix(docs, keywords = None, doc_n = None, tfidf=True):
         kw2doc_m = transformer.fit_transform(kw2doc_m)
         print 'tfidf done'
     
-
+        
     return {"kw_ind": kw_ind_map,
             "doc_ind": doc_ind_map,
             "doc2kw_m": doc2kw_m, 
@@ -124,12 +130,11 @@ def kw2doc_matrix(table="brown", keyword_field_name = 'processed_keywords', keyw
     pic_path = 'pickles/%s_linrel_matrix.pic' %table
     if os.path.exists(pic_path) and not refresh:
         print 'linrel matrix pickle exists, load it'
-        return load(open(pic_path))
+        return KwDocData(**load(open(pic_path)))
     else:
         print 'linrel matrix pickle NOT exist, generate it'
         all_keywords= get_all_keywords(table, keyword_field_name = keyword_field_name)
 
-        
         #get the number of documents
         conn = MySQLdb.connect(**MYSQL_CONN_SETTING)
         x = conn.cursor()
@@ -144,10 +149,59 @@ def kw2doc_matrix(table="brown", keyword_field_name = 'processed_keywords', keyw
         return_val = gen_kw_doc_matrix(x, doc_n = doc_c, keywords = all_keywords)
         
         dump(return_val, open(pic_path, 'w'))
-        return return_val
+        return KwDocData(**return_val)
+
+
+class KwDocData(object):
+    """
+    data wrapper associated with keyword and document
+    """
+    @property
+    def _kw2doc_m(self):
+        return self.__kw2doc_m
+
+    @property
+    def _doc2kw_m(self):
+        return self.__doc2kw_m
+
+    @property
+    def _kw_ind(self):
+        return self.__kw_ind
+
+    @property
+    def _doc_ind(self):
+        return self.__doc_ind
+
+    @property
+    def _kw_ind_r(self):                
+        if self.__kw_ind_r is None:#cache it if not exist
+            self.__kw_ind_r = dict([(ind, kw ) for kw, ind in self.__kw_ind.items()])
+        return self.__kw_ind_r
+
+    @property
+    def _doc_ind_r(self):
+        if self.__doc_ind_r is None:#cache it if not exist
+            self.__doc_ind_r = dict([(ind, doc_id ) for doc_id, ind in self.__doc_ind.items()])
+        return self.__doc_ind_r
+
+    def __init__(self, kw_ind, doc_ind, kw2doc_m, doc2kw_m):
+        """
+        kw_ind: keyword id to matrix row index mapping
+        doc_ind: doc id to matirx row index mapping
+        doc2kw_m: doc to keyword matrix
+        kw2doc_m: keyword to doc matrix
+        """
+        self.__doc2kw_m = doc2kw_m
+        self.__kw2doc_m = kw2doc_m
+        
+        self.__kw_ind = kw_ind
+        self.__doc_ind = doc_ind
+        
+        self.__kw_ind_r = None
+        self.__doc_ind_r = None        
     
 if __name__ == "__main__":
-    d = test_matrix()
-    print d['doc2kw_m'].toarray()
-    print d['kw_ind']
-    #insert_test_data(get_test_data())
+    # d = test_matrix()
+    # print d['doc2kw_m'].toarray()
+    # print d['kw_ind']
+    insert_test_data(get_test_data())

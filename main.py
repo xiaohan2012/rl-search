@@ -8,13 +8,14 @@ import os.path
 import torndb, redis
 from tornado.options import define, options
 
-import pickle
+import pickle, random
 
 from session import RedisRecommendationSessionHandler
 from engine import LinRelRecommender, QueryBasedRecommender
 
 from base_handlers import BaseHandler
-from data import kw2doc_matrix, test_matrix
+from data import kw2doc_matrix, KwDocData
+from util import get_weights
 
 random.seed(123456)
 
@@ -33,6 +34,7 @@ define("refresh_pickle", default=False, help="refresh pickle or not")
 
 define("recom_kw_num", default=5, help="recommended keyword number at each iter")
 define("recom_doc_num", default=10, help="recommended document number at each iter")
+define("samp_kw_num_from_docs", default=5, help="sampled keyword number from documents")
 
 define("random_kw", default=True, help="Random keyword intialization or not")
 define("random_doc", default=True, help="Random document intialization or not")
@@ -60,71 +62,32 @@ class Application(tornado.web.Application):
         tornado.web.Application.__init__(self, handlers, **settings)
         self.db = torndb.Connection("%s:%s" % (options.mysql_host, options.mysql_port), options.mysql_database, options.mysql_user, options.mysql_password)
         self.redis = redis.StrictRedis(host=options.redis_host, port=options.redis_port, db=options.redis_db)
-        self.linrel_dict = kw2doc_matrix(table=options.table, keyword_field_name = 'keywords', refresh = options.refresh_pickle) 
+        self.kwdoc_data = kw2doc_matrix(table=options.table, keyword_field_name = 'keywords', refresh = options.refresh_pickle) 
     
-class RecommandHandler(BaseHandler):
-        
-    def _get_weights(self, M, row_idx, col_ind2id_map, row_ind2id_map, col_idx = None):
-        """
-        Generic function that gets the weights for docs/kws associated with kws/docs
-        
-        Params:
-        M: data matrix, each row for each object
-        row_idx: the matrix row indices to be considered
-        col_ind2id_map: map from matrix **column** index to object id
-        row_ind2id_map: map from matrix **row** index to object id
-        col_idx(optional): the matrix column indices(features) to be considered
-
-        Return:
-        {'row_obj_id': [{'id': 'col_obj_id', 'w': 'weight value in M'}, ...], ...}
-        """
-        if col_idx is None:
-            submatrix = M[row_idx, :]
-        else:
-            submatrix = M[row_idx, col_idx]
-            
-        data = {}
-        for i, row_ind in enumerate(row_idx):
-            row = submatrix[i, :]
-            if col_idx is None:
-                _, nonzero_col_idx = np.nonzero(row[0,:])
-                
-            else:
-                _, nonzero_col_idx = np.nonzero(row[0,col_idx]) #nonzero_col_idx in col_idx 
-                nonzero_col_idx = np.array(col_idx)[nonzero_col_idx]#make it an array for faster and more convenient slicing
-            
-            weights = row[0, nonzero_col_idx]
-            
-            #map index to col object id
-            col_ids = [col_ind2id_map[col_ind] for col_ind in nonzero_col_idx]
-            
-            #get the matrix value
-            value = [{'id': col_id, 'w': weight} 
-                     for col_id, weight in zip(col_ids, weights)]
-                        
-            data[row_ind2id_map[row_ind]] = value
-        return data
-
+class RecommandHandler(BaseHandler):        
     def _fill_kw_weight(self, kws, docs):
-        """fill in documents' weight for each keyword"""
-        kw_idx = [self.kw_ind[kw['id']] for kw in kws] 
-        doc_idx = [self.doc_ind[doc['id']] for doc in docs] 
+        """fill in documents' weight for each keyword"""        
+        kw_idx = [self.kwdoc_data._kw_ind[kw['id']] for kw in kws] 
+        doc_idx = [self.kwdoc_data._doc_ind[doc['id']] for doc in docs] 
         
-        weights = self._get_weights(self.kw2doc_m, kw_idx, self.doc_ind_r, self.kw_ind_r, 
-                                   col_idx = doc_idx)        
+        weights = get_weights(self.kwdoc_data._kw2doc_m, kw_idx, 
+                              self.kwdoc_data._doc_ind_r, self.kwdoc_data._kw_ind_r, 
+                              col_idx = doc_idx)        
         for kw in kws:
             kw_id = kw['id']
-            kws['docs'] = weights[kw_id]
+            kw['docs'] = weights[kw_id]
         
     def _fill_doc_weight(self, docs):
-        doc_idx = [self.doc_ind[doc['id']] for doc in docs] 
+        """fill in keywords' weight for each document"""        
+        doc_idx = [self.kwdoc_data._doc_ind[doc['id']] for doc in docs] 
         
-        weights = self._get_weights(self.doc2kw_m, doc_idx, self.kw_ind_r, self.doc_ind_r, 
-                                   col_idx = None)#no keyword are passed
+        weights = get_weights(self.kwdoc_data._doc2kw_m, doc_idx, 
+                              self.kwdoc_data._kw_ind_r, self.kwdoc_data._doc_ind_r, 
+                              col_idx = None)#no keyword are passed
         
         for doc in docs:
             doc_id = doc['id']
-            docs['kws'] = weights[doc_id]        
+            doc['kws'] = weights[doc_id]        
 
     def _get_doc(self, doc_id):
         sql_temp = 'SELECT id, title, keywords FROM %s WHERE id=%%s' %options.table
@@ -147,64 +110,72 @@ class RecommandHandler(BaseHandler):
             data = {}
         
         self.session_id = data.get('session_id', '')
-        query = data.get('feedback', '')
+        query = data.get('query', '')
         kw_fb = dict([(fb['id'], fb['score']) for fb in data.get('kw_fb', [])])
         doc_fb = dict([(fb['id'], fb['score']) for fb in data.get('doc_fb', [])])
 
         session = RedisRecommendationSessionHandler.get_session(self.redis, self.session_id)
         
         if not self.session_id:  #if no session id, start a new one
-            print 'start a session..'
+            print 'start a session..', session.session_id
+            print 'Query: ', query
+            engine = QueryBasedRecommender(self.db, options.table, 
+                                           self.kwdoc_data._kw_ind, self.kwdoc_data._doc_ind, 
+                                           self.kwdoc_data._kw2doc_m, self.kwdoc_data._doc2kw_m) 
             
-            engine = QueryBasedRecommender()    
+            rec_doc_ids, rec_doc_scores = engine.recommend_documents(query, options.recom_doc_num)
+            rec_docs = self._get_docs(rec_doc_ids)
             
-            rec_doc_ids = engine.recommend_documents(query)
+            rec_kw_ids, rec_kw_scores = engine.recommend_keywords(rec_docs, options.recom_kw_num, options.samp_kw_num_from_docs)
+
             
-            rec_kw_ids = engine.recommend_keywords(rec_docs)
+            rec_kws = self._get_kws(rec_kw_ids)
             
+            #update the session       
+            #we need to do it manually
+            #as QueryBasedRecommender does not provide it
+            session.kw_ids = rec_kw_ids #update session 
+            session.doc_ids = rec_doc_ids #update session 
         else:#else we are in a session
+            print 'continue the session..', session.session_id
             if not kw_fb or not doc_fb:
                 self.json_fail(ERR_INVALID_POST_DATA, 'Since you are in a session, please give the feedbacks for both keywords and documents')
 
-            engine = LinRelRecommender(session)
-            rec_kw_ids = engine.recommend_keywords(options.recom_kw_num, 
+            engine = LinRelRecommender(session, 
+                                       self.kwdoc_data._kw_ind, self.kwdoc_data._doc_ind, 
+                                       self.kwdoc_data._kw2doc_m, self.kwdoc_data._doc2kw_m)
+            
+            rec_kw_ids, rec_kw_scores = engine.recommend_keywords(options.recom_kw_num, 
                                                    options.linrel_kw_mu, options.linrel_kw_c, 
                                                    feedbacks = kw_fb)
-            rec_doc_ids = engine.recommend_documents(options.recom_doc_num, 
+            print 'rec_kw_scores:', rec_kw_scores
+            rec_doc_ids, rec_doc_scores = engine.recommend_documents(options.recom_doc_num, 
                                                      options.linrel_doc_mu, options.linrel_doc_c, 
-                                                     feedbacks = doc_fb)
-                
-        #start get the actual content for both keywords and documents
-        rec_docs = self._get_docs(rec_doc_ids)
-        self._fill_doc_weight(doc_kws)
-                                
-        rec_kws = self._get_kws(rec_kw_ids)
-        
-        for rec_kw in rec_kws: #they are displayed
-            rec_kw['display'] = True
-                
-        self._fill_kw_weight(rec_kws, rec_docs)
+                                                     feedbacks = doc_fb)                
             
-        #for keywords associated with documents
-        assoc_kw_ids = [kw_id
-                        for doc in rec_docs 
-                        for  kw_id in doc['keywords'] 
-                        if kw_id not in rec_kw_ids]
+            rec_docs = self._get_docs(rec_doc_ids)
+            rec_kws = self._get_kws(rec_kw_ids)
+            
+        #add the scores for docs
+        for doc, score in zip(rec_docs, rec_doc_scores):
+            doc['score'] = score
+
+        #add the scores for kws
+        for rec_kw, score in zip(rec_kws, rec_kw_scores): #they are displayed
+            rec_kw['display'] = True
+            rec_kw['score'] = score
+
+        #fill in the weights for both kws and docs
+        self._fill_doc_weight(rec_docs)
+        self._fill_kw_weight(rec_kws, rec_docs)
         
-        assoc_kws = [{'id': kw} 
-                     for kw in assoc_kw_ids]
-        
-        self._fill_kw_weight(assoc_kws)
-        
-        #update the session       
-        #we need to do it manually
-        #as QueryBasedRecommender does not provide it
-        session.kw_ids = (rec_kw_ids + assoc_kw_ids) #update session 
-        session.doc_ids = (rec_doc_ids) #update session 
-    
-        self.json_ok({'session_id': self.session_id,
-                      'kws': rec_kws + assoc_kws, 
-                      'docs': docs})
+        print 'Recommendations:'
+        print 'doc_ids:', rec_doc_ids
+        print 'kw_ids:', rec_kw_ids
+
+        self.json_ok({'session_id': session.session_id,
+                      'kws': rec_kws,
+                      'docs': rec_docs})
                                 
 class MainHandler(BaseHandler):
     def get(self):

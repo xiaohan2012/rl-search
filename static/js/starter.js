@@ -315,7 +315,33 @@ $(document).ready(function() {
 	});	
     }
     
-    one_iteration(); //start!
+    //one_iteration(); //start!
+    
+    $('.btn.btn-search').on('click', function(event){
+	//start!
+	var query = $(this).closest('form').find('input').val();
+	$.ajax({
+	    url: '/api/1.0/recommend',
+	    type: 'POST',
+	    data: JSON.stringify({'query': query}),
+	    contentType: 'application/json; charset=utf-8',
+	    dataType: 'json',
+	    async: false,
+	    success: function(res) {
+		if(res.errcode === 0){
+		    e.reset();
+		    
+		    $('#responseHtml').html(JSON.stringify(res, undefined, 4));
+		    e.run({
+			'kws': res['kws'], 
+			'docs': res['docs']
+		    });
+		    global_data['session_id'] = res['session_id'];
+		    console.log('new session_id=', global_data['session_id']);
+		}
+	    }
+	});
+    })
     
     //iter!
     $('.btn.btn-update').on('click', function(e){

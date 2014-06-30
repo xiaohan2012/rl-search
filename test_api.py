@@ -1,3 +1,4 @@
+import sys
 import json, urllib2, redis
 from pprint import pprint
 
@@ -9,7 +10,11 @@ req = urllib2.Request(url)
 
 req.add_header('Content-Type', 'application/json')
 
-response = urllib2.urlopen(req, json.dumps({}))
+query = 'python database'
+print "Query:", query
+response = urllib2.urlopen(req, json.dumps({
+    'query': query
+}))
 res = json.loads(response.read())
 session_id = res['session_id']
 
@@ -23,15 +28,14 @@ req.add_header('Content-Type', 'application/json')
 
 response = urllib2.urlopen(req, json.dumps({
     'session_id': session_id,
-    'doc_fb': [{'id':1, 'score': 0.6}, {'id': 3, 'score': 0.1}],
-    'kw_fb': [{'id': 'python', 'score': 0.1}, {'id': 'database', 'score': 0.6}]
+    'doc_fb': [{'id':5, 'score': 0.1}, {'id': 6, 'score': 0.8}],
+    'kw_fb': [{'id': 'key-value-storage', 'score': 0.8}, {'id': 'database', 'score': 0.6}]
 }))
 
 res = json.loads(response.read())
 pprint(res)
 
-
-print 'Second round'
+print 'Second round..'
 req = urllib2.Request(url)
 req.add_header('Content-Type', 'application/json')
 
@@ -44,3 +48,4 @@ response = urllib2.urlopen(req, json.dumps({
 res = json.loads(response.read())
 pprint(res)
     
+sys.exit(-1)
