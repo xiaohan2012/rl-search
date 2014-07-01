@@ -27,20 +27,35 @@ def linrel(y_t, D_t, D, mu, c):
     a_t_2powered = a_t.copy()
 
     a_t_2powered.data **= 2
-    print 'after'
-    print np.sqrt(np.array(a_t_2powered.sum(1)))
     
-    exploration_scores = np.sqrt(np.array(a_t_2powered.sum(1))) * c / 2
-    print '**a_t**'
-    print type(a_t), a_t
-    print '**y_t**'
-    print type(y_t), y_t, y_t.shape
-    exploitation_scores = np.array(a_t * y_t)
-    scores = exploration_scores + exploitation_scores
+    explr_scores = np.sqrt(np.array(a_t_2powered.sum(1))) * c / 2
+    explt_scores = a_t * y_t
+    
+    if hasattr(explt_scores, 'todense'): #if sparse, then to dense
+        explt_scores = explt_scores.todense()
+        
+    scores = explr_scores + explt_scores
 
-    print 'explr scores'
-    print exploration_scores
-    print 'explt scores'
-    print exploitation_scores
+    return scores, explr_scores, explt_scores
 
-    return scores, exploration_scores, exploitation_scores
+if __name__ == "__main__":
+    D = csr_matrix(np.array([[1, 0, 0, 0, 1, 1],
+                             [0, 1, 1, 0, 0, 0], 
+                             [1, 0, 0, 1, 0, 0],#we favor this one
+                             [1, 0, 0, 0, 1, 1],
+                             [1, 1, 0, 1, 0, 0],#this is good
+                             [0, 1, 1, 0, 0, 0],
+                             [1, 1, 1, 0, 0, 0],#this is surprise
+                         ]))
+    D_t = D[0:3,:]
+    mu = 1
+    c = .2
+    y_t = csr_matrix([[.3], [.3], [.7]])
+
+    scores, explr_scores, explt_scores = linrel(y_t, D_t, D, mu, c)
+    
+    print scores
+    print '='
+    print explr_scores
+    print '+'
+    print explt_scores

@@ -49,7 +49,20 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
     
     def generate_session_id(self):
         return str(uuid.uuid1())
-
+    
+    @property
+    def data(self):
+        return {
+            'kw_score_hist': self.kw_score_hist,
+            'kw_explr_score_hist': self.kw_explr_score_hist,
+            'kw_explt_score_hist': self.kw_explt_score_hist,
+            'kw_fb_hist': self.kw_fb_hist,
+            'doc_score_hist': self.doc_score_hist,
+            'doc_explr_score_hist': self.doc_explr_score_hist,
+            'doc_explt_score_hist': self.doc_explt_score_hist,
+            'doc_fb_hist': self.doc_fb_hist
+        }
+        
     @classmethod
     def get_session(cls, conn, session_id=None):
         #factory method, return the session
@@ -64,9 +77,10 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
 
     def _dict_list_setter(self, key, data):
         """
+        generic setter for {key: list, ...} data structure
+        
         `key`: the redis key
         data: dictionary data to be incorporated into
-        generic setter for {key: list, ...} data structure
         """
         hist = getattr(self, key)
         for kw, val in data.items():
@@ -98,6 +112,30 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
         self._dict_list_setter('kw_explr_score_hist', val)
 
     @property
+    def doc_score_hist(self):
+        return self._dict_list_getter('doc_score_hist')
+
+    @doc_score_hist.setter
+    def doc_score_hist(self, val):
+        self._dict_list_setter('doc_score_hist', val)
+
+    @property
+    def doc_explt_score_hist(self):
+        return self._dict_list_getter('doc_explt_score_hist')
+
+    @doc_explt_score_hist.setter
+    def doc_explt_score_hist(self, val):
+        self._dict_list_setter('doc_explt_score_hist', val)
+
+    @property
+    def doc_explr_score_hist(self):
+        return self._dict_list_getter('doc_explr_score_hist')
+
+    @doc_explr_score_hist.setter
+    def doc_explr_score_hist(self, val):
+        self._dict_list_setter('doc_explr_score_hist', val)
+
+    @property
     def doc_ids(self):
         val = self.redis.get('session:%s:doc_ids' %self.session_id)
         if val is None:
@@ -123,11 +161,43 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
         new_ids = set(self.kw_ids) | set(kw_ids)
         self.redis.set('session:%s:kw_ids' %self.session_id, pickle.dumps(new_ids))
 
+    def _list_getter(self, key):
+        res = self.redis.get('session:%s:%s' %(self.session_id, key))
+        if not res:
+            return []
+        else:
+            return pickle.loads(res)
+
+    def _list_setter(self, key, val):
+        current_value = getattr(self, key)
+        current_value.append(val)
+        self.redis.set('session:%s:%s' %(self.session_id, key), pickle.dumps(current_value))
+            
+    @property
+    def kw_fb_hist(self):
+        """keyword feedback history"""
+        return self._list_getter('kw_fb_hist')
+
+    @kw_fb_hist.setter
+    def kw_fb_hist(self, val):
+        """keyword feedback history"""
+        self._list_setter('kw_fb_hist', val)
+
+    @property
+    def doc_fb_hist(self):
+        """document feedback history"""
+        return self._list_getter('doc_fb_hist')
+
+    @doc_fb_hist.setter
+    def doc_fb_hist(self, val):
+        """document feedback history"""
+        self._list_setter('doc_fb_hist', val)
+
     @property
     def kw_feedbacks(self):
-        """keyword feedback history"""
+        """keyword feedback"""
         #we use pickle to avoid the int-string problem
-        #descriped in http://stackoverflow.com/questions/1450957/pythons-json-module-converts-int-dictionary-keys-to-strings
+        #described in http://stackoverflow.com/questions/1450957/pythons-json-module-converts-int-dictionary-keys-to-strings
         res = self.redis.get('session:%s:kw_feedbacks' %self.session_id)
         if not res:
             return {}
@@ -136,7 +206,7 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
 
     @kw_feedbacks.setter
     def kw_feedbacks(self, kw_fb):
-        """keyword feedback history"""
+        """keyword feedback"""
         kw_feedbacks = self.kw_feedbacks
         kw_feedbacks.update(kw_fb)
         self.redis.set('session:%s:kw_feedbacks' %self.session_id, pickle.dumps(kw_feedbacks))

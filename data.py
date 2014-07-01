@@ -39,25 +39,25 @@ def get_all_keywords(table="brown", keyword_field_name = "processed_keywords", r
 
 def get_test_data():
     return [{'title': 'redis: key-value-storage database (ONE)',
-             'keywords': 'redis database key-value-storage a the'.split()},
+             'keywords': 'redis database a'.split()},
             {'title': 'redis: key-value-storage database (TWO)',
-             'keywords': 'redis database a the '.split()},
+             'keywords': 'redis database the'.split()},
             {'title': 'tornado: python  web framework(ONE)',
-             'keywords': 'tornado web python a the'.split()},
+             'keywords': 'tornado web python a'.split()},
             {'title': 'tornado: python  web framework(TWO)',
-             'keywords': 'tornado python web framework a the'.split()},
+             'keywords': 'tornado python web the'.split()},
             {'title': 'torndb: python mysql wrapper',
-             'keywords': 'python database torndb mysql'.split()},
+             'keywords': 'python database mysql'.split()},
             {'title': 'pyredis: python redis wrapper',
-             'keywords': 'python database pyredis redis'.split()},
+             'keywords': 'python database redis'.split()},
             {'title': 'mysql: relational database',
-             'keywords': 'database database relation-database'.split()},
+             'keywords': 'database mysql'.split()},
             {'title': 'some python page',
-             'keywords': 'python a the'.split(),},
+             'keywords': 'python a'.split(),},
             {'title': 'some database page',
-             'keywords': 'database a the'.split(),},
+             'keywords': 'database the'.split(),},
             {'title': 'some random page',
-             'keywords': 'web a the'.split()}
+             'keywords': 'web the'.split()}
     ]
     
 def insert_test_data(test_data, table = "test"):
@@ -199,7 +199,7 @@ class KwDocData(object):
         
         self.__kw_ind_r = None
         self.__doc_ind_r = None        
-    
+
 if __name__ == "__main__":
     # d = test_matrix()
     # print d['doc2kw_m'].toarray()

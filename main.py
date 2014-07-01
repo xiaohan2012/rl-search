@@ -15,8 +15,8 @@ from engine import LinRelRecommender, QueryBasedRecommender
 
 from base_handlers import BaseHandler
 from data import kw2doc_matrix, KwDocData
-from util import get_weights
-
+from util import get_weights, iter_summary
+from document import Document 
 
 define("port", default=8000, help="run on the given port", type=int)
 define("mysql_port", default=3306, help="db's port", type=int)
@@ -124,17 +124,16 @@ class RecommandHandler(BaseHandler):
             
             rec_doc_ids, rec_doc_scores = engine.recommend_documents(query, options.recom_doc_num)
             rec_docs = self._get_docs(rec_doc_ids)
-            
+
+            print "Recommended documens:"
+            for doc in rec_docs:
+                print Document(doc)
+
             rec_kw_ids, rec_kw_scores = engine.recommend_keywords(rec_docs, options.recom_kw_num, options.samp_kw_num_from_docs)
 
             
             rec_kws = self._get_kws(rec_kw_ids)
             
-            #update the session       
-            #we need to do it manually
-            #as QueryBasedRecommender does not provide it
-            session.kw_ids = rec_kw_ids #update session 
-            session.doc_ids = rec_doc_ids #update session 
         else:#else we are in a session
             print 'continue the session..', session.session_id
             if not kw_fb or not doc_fb:
@@ -182,9 +181,24 @@ class RecommandHandler(BaseHandler):
             
         self._fill_kw_weight(extra_kws, rec_docs)
         
-        print 'Recommendations:'
-        print 'doc_ids:', rec_doc_ids
-        print 'kw_ids:', rec_kw_ids
+        kw_dict = dict([(kw, kw) for kw in self.kwdoc_data._kw_ind.keys()])
+        doc_dict = dict([(doc_id, Document(self._get_doc(doc_id))) for doc_id in self.kwdoc_data._doc_ind.keys()])
+
+        #print the summary
+        iter_summary(kw_dict = kw_dict,
+                     doc_dict = doc_dict,
+                     **session.data)
+        
+        print "Recommended documents:"
+        for doc_id in rec_doc_ids:
+            doc = self._get_doc(doc_id)
+            print doc
+
+        print "Recommended keywords:"
+        for kw in rec_kw_ids:
+            print kw,
+        print 
+
         print 'extra_kw_ids:', extra_kw_ids
         self.json_ok({'session_id': session.session_id,
                       'kws': (rec_kws + extra_kws),

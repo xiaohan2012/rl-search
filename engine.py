@@ -4,6 +4,8 @@ import torndb
 import random
 from numpy import matrix
 
+from util import iter_summary
+from document import Document
 
 from linrel import linrel
 from data import KwDocData
@@ -68,7 +70,11 @@ class QueryBasedRecommender(Recommender):
         all_kws_from_docs = set([kw 
                                  for doc in rec_docs 
                                  for kw in doc['keywords']])
-        kws_from_docs = random.sample(list(all_kws_from_docs), kw_num_from_docs)
+        
+        if len(all_kws_from_docs) <= kw_num_from_docs:
+            kws_from_docs = list(all_kws_from_docs)
+        else:
+            kws_from_docs = random.sample(list(all_kws_from_docs), kw_num_from_docs)
 
         #get all the documents that have keywords in common with the documents being recommended
         word_vec = self._word_vec(kws_from_docs)
@@ -121,7 +127,7 @@ class QueryBasedRecommender(Recommender):
         sql_temp = 'SELECT id, title, keywords FROM %s WHERE id=%%s' %self._table
         row = self._db.get(sql_temp, doc_id)
         row['keywords'] = json.loads(row['keywords'])
-        return row       
+        return Document(row)
 
 
 def test_query(query):
@@ -150,19 +156,19 @@ class LinRelRecommender(Recommender):
         super(LinRelRecommender, self).__init__(*args)
         self._session = session
         
-    def generic_recommend(self, K, fb, ids, id2ind_map,
+    def generic_recommend(self, K, fb, id2ind_map,
                           mu, c):
         """
         Parameter:
         K: the whole data matrix
         fb: feedbacks, dict
-        ids: object ids to be considered
         id2ind_map: mapping from object id to matrix indices
         
         Return:
         the matrix row indices as well as the scores(in descending order)
         and the sorted decomposition of the scores
         """
+        ids = fb.keys()
         def submatrix():
             idx_in_K = [id2ind_map[id] for id in ids]
             K_sub = K[idx_in_K, :]
@@ -194,8 +200,11 @@ class LinRelRecommender(Recommender):
         """
         if feedbacks:#if given, update
             self._session.kw_feedbacks = feedbacks
+            self._session.kw_fb_hist = feedbacks
+        else:
+            self._session.kw_fb_hist = {}
 
-        scores, explr_scores, explt_scores = self.generic_recommend(self._kw2doc_m, self._session.kw_feedbacks, self._session.kw_ids, self._kw_ind,
+        scores, explr_scores, explt_scores = self.generic_recommend(self._kw2doc_m, self._session.kw_feedbacks, self._kw_ind,
                                                                                  mu, c)
         
         id_with_scores = [(self._kw_ind_r[ind], score) for ind,score in scores]
@@ -205,20 +214,13 @@ class LinRelRecommender(Recommender):
         top_ids_with_scores = [(self._kw_ind_r[ind], score) for ind,score in scores[:top_n]]
         top_ids = [self._kw_ind_r[ind] for ind,_ in scores[:top_n]]
         
-        self._session.kw_ids = top_ids #**UPDATE** feedback in session
+        #self._session.kw_ids = top_ids #it might not be necessary
 
         # the history also
         self._session.kw_score_hist = dict(id_with_scores)
-        self._session.kw_explr_hist = dict(id_with_explr_scores)
-        self._session.kw_explt_hist = dict(id_with_explt_scores) 
-        
-        print 'self._session.kw_score_hist:'
-        pprint(self._session.kw_score_hist)
-        print 'self._session.kw_explr_score_hist:'
-        pprint(self._session.kw_explr_hist)
-        print 'self._session.kw_explt_score_hist:'
-        pprint(self._session.kw_explt_hist)
-        
+        self._session.kw_explr_score_hist = dict(id_with_explr_scores)
+        self._session.kw_explt_score_hist = dict(id_with_explt_scores) 
+                
         return zip(*top_ids_with_scores)
         
     def recommend_documents(self, top_n, mu, c, feedbacks = None):
@@ -227,55 +229,104 @@ class LinRelRecommender(Recommender):
         """
         if feedbacks:#if given, update
             self._session.doc_feedbacks = feedbacks
-        
-        scores, exploration_scores, exploitation_scores = self.generic_recommend(self._doc2kw_m, self._session.doc_feedbacks, self._session.doc_ids, self._doc_ind,
+            self._session.doc_fb_hist = feedbacks
+        else:
+            self._session.doc_fb_hist = {}
+
+        scores, explr_scores, explt_scores = self.generic_recommend(self._doc2kw_m, self._session.doc_feedbacks, self._doc_ind,
                                                                                  mu, c)
-        
-        print 'document feedbacks: '
-        pprint(self._session.doc_feedbacks)
-        print 'documents with scores'
-        pprint([(self._doc_ind_r[ind], score) for ind,score in scores])
-        
+                
         top_ids_with_scores = [(self._doc_ind_r[ind], score) for ind, score in scores[:top_n]]
         top_ids = [self._doc_ind_r[ind] for ind, _ in scores[:top_n]]
         
-        self._session.doc_ids = top_ids #**UPDATE** feedback in session
-        return zip(*top_ids_with_scores)
+        # self._session.doc_ids = top_ids
+
+        # the history also
+        id_with_scores = [(self._doc_ind_r[ind], score) for ind,score in scores]
+        id_with_explr_scores = [(self._doc_ind_r[ind], score) for ind,score in explr_scores]
+        id_with_explt_scores = [(self._doc_ind_r[ind], score) for ind,score in explt_scores]
         
-def test_linrel():    
+        self._session.doc_score_hist = dict(id_with_scores)
+        self._session.doc_explr_score_hist = dict(id_with_explr_scores)
+        self._session.doc_explt_score_hist = dict(id_with_explt_scores) 
+        
+
+        return zip(*top_ids_with_scores)
+            
+def main():
     import  redis
     from session import RedisRecommendationSessionHandler
     from data import kw2doc_matrix
-    
-    conn = redis.StrictRedis(host='ugluk', port='6379', db='test')
-    s = RedisRecommendationSessionHandler.get_session(conn)
-    
-    d_ = kw2doc_matrix('test')
-    
-    r = LinRelRecommender(s, d_['kw_ind'], d_['doc_ind'], d_['kw2doc_m'], d_['doc2kw_m'])
-    r._session.doc_ids = [1, 3]
-    r._session.kw_ids = ['database', 'python']
-    
-    doc_feedbacks = {1: .6, 3: .1}
-    kw_feedbacks = {'database': .6, 'python': .1}
-
     top_n = 2
     mu = 1
-    c = .2
+    c = 1
     
-    rec_kw_ids = r.recommend_keywords(top_n, mu, c)
-    rec_doc_ids = r.recommend_documents(top_n, mu, c)
-    print 'giving no feedback..'
-    print rec_kw_ids
-    print rec_doc_ids
-    
-    rec_kw_ids = r.recommend_keywords(top_n, mu, c, kw_feedbacks)
-    rec_doc_ids = r.recommend_documents(top_n, mu, c, doc_feedbacks)
+    table = 'test'
+    db = torndb.Connection("%s:%s" % ('ugluk', 3306), 'scinet3', 'hxiao', 'xh24206688')    
 
-    print 'giving some feedback..'
-    print rec_kw_ids
-    print rec_doc_ids
+    redis_conn = redis.StrictRedis(host='ugluk', port='6379', db='test')
+    #init session
+    s = RedisRecommendationSessionHandler.get_session(redis_conn)
+    
+    d_ = kw2doc_matrix('test')
+    linrel_r = LinRelRecommender(s, d_._kw_ind, d_._doc_ind, d_._kw2doc_m, d_._doc2kw_m)
+    query_r = QueryBasedRecommender(db, table, d_._kw_ind, d_._doc_ind, d_._kw2doc_m, d_._doc2kw_m)
+    
+    kw_dict = dict([(kw, kw) for kw in d_._kw_ind.keys()]) #kw_id -> kw
+    doc_dict = dict([(doc_id, query_r._get_doc(doc_id)) for doc_id in d_._doc_ind.keys()]) #doc_id -> doc
+
+    query = raw_input('Your query:')
+    doc_ids, scores = query_r.recommend_documents(query, top_n)
+    docs = [query_r._get_doc(doc_id) for doc_id in doc_ids]
+    kw_ids, scores = query_r.recommend_keywords(docs, 4, 2)
+    
+    print "Recommended documents:"
+    for doc in docs:
+        print doc
+
+    print "Recommended keywords:"
+    for kw in kw_ids:
+        print kw,
+    print 
+                
+    linrel_r._session.doc_ids = doc_ids
+    linrel_r._session.kw_ids = kw_ids
+    
+    while True:
+        kw_fb_str = raw_input('Please give some feedback for keywords(in format like kw:score,kw:score \n')
+        kw_feedbacks = {}
+        for seg in kw_fb_str.split(','):
+            kw, score = seg.split(':') 
+            score = float(score.strip())
+            kw_feedbacks[kw.strip()] = score
+            
+        doc_fb_str = raw_input('Please give some feedback for documents(in the JSON format or numbers separated by space)\n')
+        doc_feedbacks = {}
+        for seg in doc_fb_str.split(','):
+            doc_id, score = seg.split(':') 
+            doc_id = int(doc_id)
+            score = float(score.strip())
+            doc_feedbacks[doc_id] = score
+        
+        kw_ids, scores = linrel_r.recommend_keywords(top_n, mu, c, kw_feedbacks)
+        doc_ids, scores = linrel_r.recommend_documents(top_n, mu, c, doc_feedbacks)
+
+        #print the summary
+        iter_summary(kw_dict = kw_dict,
+                     doc_dict = doc_dict,
+                     **s.data)
+        
+        print "Recommended documents:"
+        for doc_id in doc_ids:
+            doc = query_r._get_doc(doc_id)
+            print doc
+
+        print "Recommended keywords:"
+        for kw in kw_ids:
+            print kw,
+        print 
     
 if __name__ == "__main__":
     #test_query('python redis')
-    test_linrel()
+    # test_linrel()
+    main()

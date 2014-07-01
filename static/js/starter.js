@@ -331,21 +331,21 @@ $(document).ready(function() {
 		    console.log('new session_id=', global_data['session_id']);
 
 		    
-		    if(!clicked){
-			setTimeout(function(){
-			    $('#keywordsWrapper .kw:eq(0)').click();
-			    $('#documentsWrapper .doc:eq(0)').click();
-			    $('.btn.btn-update').click();
-			    console.log('clicked..');
+		    // if(!clicked){
+		    // 	setTimeout(function(){
+		    // 	    $('#keywordsWrapper .kw:eq(0)').click();
+		    // 	    $('#documentsWrapper .doc:eq(0)').click();
+		    // 	    $('.btn.btn-update').click();
+		    // 	    console.log('clicked..');
 
-			}, 1000);
-			clicked = true;			
-		    }
+		    // 	}, 1000);
+		    // 	clicked = true;			
+		    // }
 		    
 		}
 	    }
 	});
-    }).click();
+    })//.click();
     
     //iter!
     $('.btn.btn-update').on('click', function(e){

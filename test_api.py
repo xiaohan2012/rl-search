@@ -10,7 +10,7 @@ req = urllib2.Request(url)
 
 req.add_header('Content-Type', 'application/json')
 
-query = 'python database'
+query = 'python'
 print "Query:", query
 response = urllib2.urlopen(req, json.dumps({
     'query': query
@@ -21,6 +21,8 @@ session_id = res['session_id']
 print 'Initialization session id.'
 pprint(res)
 
+
+
 print 'First round:'
 
 req = urllib2.Request(url)
@@ -29,7 +31,7 @@ req.add_header('Content-Type', 'application/json')
 response = urllib2.urlopen(req, json.dumps({
     'session_id': session_id,
     'doc_fb': [{'id':5, 'score': 0.1}, {'id': 6, 'score': 0.8}],
-    'kw_fb': [{'id': 'key-value-storage', 'score': 0.8}, {'id': 'database', 'score': 0.6}]
+    'kw_fb': [{'id': 'python', 'score': 0.8}, {'id': 'database', 'score': 0.6}]
 }))
 
 res = json.loads(response.read())
@@ -48,4 +50,5 @@ response = urllib2.urlopen(req, json.dumps({
 res = json.loads(response.read())
 pprint(res)
     
+
 sys.exit(-1)
