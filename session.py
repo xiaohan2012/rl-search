@@ -46,7 +46,7 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
             self.session_id = self.generate_session_id()
         else:
             self.session_id = session_id
-    
+        
     def generate_session_id(self):
         return str(uuid.uuid1())
     

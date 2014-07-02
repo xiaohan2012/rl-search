@@ -33,7 +33,8 @@ define("refresh_pickle", default=False, help="refresh pickle or not")
 
 define("recom_kw_num", default=5, help="recommended keyword number at each iter")
 define("recom_doc_num", default=10, help="recommended document number at each iter")
-define("samp_kw_num_from_docs", default=5, help="sampled keyword number from documents")
+define("samp_kw_num", default=5, help="sampled keyword number from documents")
+define("samp_doc_num", default=5, help="extra document number apart from the recommended ones")
 
 define("random_kw", default=True, help="Random keyword intialization or not")
 define("random_doc", default=True, help="Random document intialization or not")
@@ -122,52 +123,44 @@ class RecommandHandler(BaseHandler):
                                            self.kwdoc_data._kw_ind, self.kwdoc_data._doc_ind, 
                                            self.kwdoc_data._kw2doc_m, self.kwdoc_data._doc2kw_m) 
             
-            rec_doc_ids, rec_doc_scores = engine.recommend_documents(query, options.recom_doc_num)
-            rec_docs = self._get_docs(rec_doc_ids)
-
-            print "Recommended documens:"
-            for doc in rec_docs:
-                print Document(doc)
-
-            rec_kw_ids, rec_kw_scores = engine.recommend_keywords(rec_docs, options.recom_kw_num, options.samp_kw_num_from_docs)
-
+            rec_docs = engine.recommend_documents(query, options.recom_doc_num)
             
-            rec_kws = self._get_kws(rec_kw_ids)
+            rec_kws = engine.recommend_keywords(rec_docs, options.recom_kw_num, options.samp_kw_num)
+
+            extra_docs = engine.associated_documents_by_keywords([kw #only those extra keywords
+                                                                   for kw in rec_kws 
+                                                                   if not kw['recommended']], 
+                                                                  options.samp_doc_num)
+            rec_docs = rec_docs + extra_docs
             
         else:#else we are in a session
             print 'continue the session..', session.session_id
             if not kw_fb or not doc_fb:
                 self.json_fail(ERR_INVALID_POST_DATA, 'Since you are in a session, please give the feedbacks for both keywords and documents')
 
-            engine = LinRelRecommender(session, 
+            engine = LinRelRecommender(session, self.db, options.table,
                                        self.kwdoc_data._kw_ind, self.kwdoc_data._doc_ind, 
                                        self.kwdoc_data._kw2doc_m, self.kwdoc_data._doc2kw_m)
             
-            rec_kw_ids, rec_kw_scores = engine.recommend_keywords(options.recom_kw_num, 
+            rec_kws = engine.recommend_keywords(options.recom_kw_num, 
                                                    options.linrel_kw_mu, options.linrel_kw_c, 
                                                    feedbacks = kw_fb)
-            print 'rec_kw_scores:', rec_kw_scores
-            rec_doc_ids, rec_doc_scores = engine.recommend_documents(options.recom_doc_num, 
+            
+            rec_docs = engine.recommend_documents(options.recom_doc_num, 
                                                      options.linrel_doc_mu, options.linrel_doc_c, 
                                                      feedbacks = doc_fb)                
-            
-            rec_docs = self._get_docs(rec_doc_ids)
-            rec_kws = self._get_kws(rec_kw_ids)
-            
-        #add the scores for docs
-        for doc, score in zip(rec_docs, rec_doc_scores):
-            doc['score'] = score
 
         #add the scores for kws
-        for rec_kw, score in zip(rec_kws, rec_kw_scores): #they are displayed
+        print rec_kws
+        for rec_kw in rec_kws: #they are displayed
             rec_kw['display'] = True
-            rec_kw['score'] = score
 
         #fill in the weights for both kws and docs
         self._fill_doc_weight(rec_docs)
         self._fill_kw_weight(rec_kws, rec_docs)
         
         #get associated keywords
+        rec_kw_ids = [kw['id'] for kw in rec_kws]
         extra_kw_ids = set([kw_id
                         for doc in rec_docs
                         for kw_id in doc['keywords']
@@ -190,8 +183,7 @@ class RecommandHandler(BaseHandler):
                      **session.data)
         
         print "Recommended documents:"
-        for doc_id in rec_doc_ids:
-            doc = self._get_doc(doc_id)
+        for doc in rec_docs:
             print doc
 
         print "Recommended keywords:"
