@@ -130,7 +130,7 @@ class RecommandHandler(BaseHandler):
             extra_docs = engine.associated_documents_by_keywords([kw #only those extra keywords
                                                                    for kw in rec_kws 
                                                                    if not kw['recommended']], 
-                                                                  options.samp_doc_num)
+                                                                 options.recom_doc_num - options.samp_doc_num)
             rec_docs = rec_docs + extra_docs
             
         else:#else we are in a session

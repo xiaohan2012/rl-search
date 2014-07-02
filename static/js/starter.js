@@ -105,14 +105,8 @@ var fb_rule =
 		return acc + val;
 	    }, 0);
 	    
-	    //weighted sum
-	    if(this._doc_weight_sum == 0){ //no doc are associated with it
-		return this.alpha * this._fb_from_itself;
-	    }
-	    else{
-		return this.alpha * this._fb_from_itself + 
-		    (1 - this.alpha) * fb_from_doc_sum / this._doc_weight_sum;
-	    }
+	    return this._fb_from_itself > 0 ? this._fb_from_itself : (this._doc_weight_sum == 0? 0 : fb_from_doc_sum / this._doc_weight_sum) ;
+
 	},    
 	'doc_get_feedback': function(){
 	    var fb_from_primary_kws_sum = $.map(this._fb_from_primary_kws, function(fb){
@@ -126,19 +120,11 @@ var fb_rule =
 	    }).reduce(function(acc, val){
 		return acc + val;
 	    }, 0);
-	    
-	    
-	    if(this._kw_weight_sum == 0){ //no kw are associated with it
-		return this.alpha * fb_from_its_kws_sum;
-	    }
-	    else{
-		//weighted sum
-		return (this.alpha * fb_from_its_kws_sum + 
-			(1 - this.alpha) * fb_from_primary_kws_sum) / this._kw_weight_sum;
-	    }
-	    
+
+	    return (fb_from_its_kws_sum > 0 ? fb_from_its_kws_sum : fb_from_primary_kws_sum) / this._kw_weight_sum;
 	}
     });
+
 
 var kw_renderer = new KwRenderer($('#keywordsWrapper>ul'), $('#documentsWrapper>ul'), {
     'get_kw_html': function(){
