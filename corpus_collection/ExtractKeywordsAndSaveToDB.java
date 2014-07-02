@@ -39,7 +39,7 @@ public class ExtractKeywordsAndSaveToDB
 	
 	for(Integer rowId = 1; rowId <= upper; rowId++){
 	    System.out.println(rowId);
-	    
+
 	    prepSelStmt.setInt(1, rowId);
 	
 	    rs = prepSelStmt.executeQuery();
