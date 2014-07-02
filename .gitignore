@@ -87,3 +87,6 @@ cookies
 # Sphinx documentation
 docs/_build/
 
+
+
+*.class
