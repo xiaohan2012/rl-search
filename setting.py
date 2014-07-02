@@ -5,6 +5,7 @@ MYSQL_HOST = "193.167.138.8"
 MYSQL_CONN_SETTING = {'host': MYSQL_HOST,
                       'user':MYSQL_USER,
                       'passwd':MYSQL_PWD,
+                      'port': 3306,
                       'db':MYSQL_DB,
                       'charset':"utf8", 
                       'use_unicode':True}

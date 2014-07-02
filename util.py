@@ -4,7 +4,7 @@ import torndb
 import json
 from tabulate import tabulate
 
-conn = torndb.Connection("%s:%s" % ('ugluk', 3306), 'scinet3', 'hxiao', 'xh24206688')
+conn = torndb.Connection("%s:%s" % ('ugluk', 3306), 'archive', 'hxiao', 'xh24206688')
 
 def import_corpus(corpus, table_name):
     """
@@ -131,6 +131,22 @@ def iter_summary(kw_score_hist, kw_explr_score_hist, kw_explt_score_hist,
         print doc_tbl
         print
 
+def test_iter_summary():
+    kw_scores = {'kw1': [.1, .2], 'kw2': [.2, 0.3]}
+    kw_explr_scores = {'kw1': [.05, .15], 'kw2': [.1, 0.1]}
+    kw_explt_scores = {'kw1': [.05, .05], 'kw2': [.1, 0.2]}
+    
+    
+    doc_scores = {'doc1': [.1, .2], 'doc2': [.2, 0.3]}
+    doc_explr_scores = {'doc1': [.05, .15], 'doc2': [.1, 0.11]}
+    doc_explt_scores = {'doc1': [.05, .05], 'doc2': [.1, 0.2]}
+    
+    kw_fbs = [{'kw1': .1, 'kw2': .2}, {'kw1': .3, 'kw2': .1}]
+    doc_fbs = [{'doc1': .1, 'doc': .2}, {'doc1': .3, 'doc': .1}] 
+    
+    iter_summary(kw_scores, kw_explr_scores, kw_explt_scores,
+                 doc_scores, doc_explr_scores, doc_explt_scores,
+                 kw_fbs, doc_fbs)
 
 def test_get_weight():
     from data import kw2doc_matrix
@@ -148,25 +164,19 @@ def test_get_weight():
                       d._kw_ind_r, 
                       col_idx = [0,1,5])
      
-    
+
+def remove_keywords(table, exclude = {None}, keyword_field_name='processed_keywords'):
+    """
+    remove certain keywords in exclude from the documents in the `table`
+    """
+    for row in conn.query("select id, %s from %s" %(keyword_field_name, table)):
+        print row['id']
+        filtered_kws = [kw for kw in json.loads(row[keyword_field_name]) if kw not in exclude]
+        conn.execute("UPDATE %s SET %s = %%s where id=%%s" %(table, keyword_field_name), json.dumps(filtered_kws), row['id'])
+
+
 if __name__ == "__main__":
     # corp = json.lad(open('corpus_collection/corpus_collection/john.json', 'r'))
     # corp = filter(lambda doc: len(doc['keywords']) > 0, corp)
     # import_corpus(corp, 'john')
-    
-    kw_scores = {'kw1': [.1, .2], 'kw2': [.2, 0.3]}
-    kw_explr_scores = {'kw1': [.05, .15], 'kw2': [.1, 0.1]}
-    kw_explt_scores = {'kw1': [.05, .05], 'kw2': [.1, 0.2]}
-    
-    
-    doc_scores = {'doc1': [.1, .2], 'doc2': [.2, 0.3]}
-    doc_explr_scores = {'doc1': [.05, .15], 'doc2': [.1, 0.11]}
-    doc_explt_scores = {'doc1': [.05, .05], 'doc2': [.1, 0.2]}
-    
-    kw_fbs = [{'kw1': .1, 'kw2': .2}, {'kw1': .3, 'kw2': .1}]
-    doc_fbs = [{'doc1': .1, 'doc': .2}, {'doc1': .3, 'doc': .1}] 
-    
-    iter_summary(kw_scores, kw_explr_scores, kw_explt_scores,
-                 doc_scores, doc_explr_scores, doc_explt_scores,
-                 kw_fbs, doc_fbs)
-    
+    remove_keywords('archive', keyword_field_name="keywords")

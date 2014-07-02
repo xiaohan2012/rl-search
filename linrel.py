@@ -19,7 +19,7 @@ def linrel(y_t, D_t, D, mu, c):
     exploration_scores: as the name implies
     exploitation_scores: as the name implies 
     """
-
+    print "doing linrel.."
     feature_n = D_t.shape[1] #the feature number
     a_t = D * inv(D_t.T * D_t + mu * eye(feature_n, feature_n)) * D_t.T 
     
