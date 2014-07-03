@@ -36,9 +36,6 @@ define("recom_doc_num", default=10, help="recommended document number at each it
 define("samp_kw_num", default=5, help="sampled keyword number from documents")
 define("samp_doc_num", default=5, help="extra document number apart from the recommended ones")
 
-define("random_kw", default=True, help="Random keyword intialization or not")
-define("random_doc", default=True, help="Random document intialization or not")
-
 define("linrel_kw_mu", default=1, help="Value for \mu in the linrel algorithm for keyword")
 define("linrel_kw_c", default=0.2, help="Value for c in the linrel algorithm for keyword")
 define("linrel_doc_mu", default=1, help="Value for \mu in the linrel algorithm for document")
