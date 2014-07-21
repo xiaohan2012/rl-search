@@ -173,13 +173,19 @@ def test_query(query):
     
 
 class LinRelRecommender(Recommender): 
-    def __init__(self, session, *args, **kwargs):
+    def __init__(self, session, 
+                 kw_sampling_threshold,
+                 doc_sampling_threshold,
+                 *args, **kwargs):
         """
         session: the session object used to retrieve session data
         args: the matrix and index mapping stuff
         """
         
         self._session = session
+        self._kw_sampling_threshold = kw_sampling_threshold
+        self._doc_sampling_threshold = doc_sampling_threshold
+        
         super(LinRelRecommender, self).__init__(*args, **kwargs)
         
     def generic_recommend(self, K, fb, id2ind_map,
@@ -220,19 +226,64 @@ class LinRelRecommender(Recommender):
         
         
         return sorted_scores, sorted_exploitation_scores, sorted_exploration_scores
-        
-    def recommend_keywords(self, top_n, mu, c, feedbacks = None ):
+    
+    def _filter_objs(self, objs, feedbacks, filters):
         """
+        we shall do some filtering here:
+        select only the objects which passes at least one of the filters
+
+        return:
+        the filtered list of objects
+        """
+        sel_objs = set()
+        for filter_func in filters:
+            sel_objs |= set(filter_func(kws, self.fb2vec(objs, feedbacks)))
+            
+        return self_objs
+        
+    def _submatrix_and_indexing(self, objs, obj_feature_matrix, obj2ind_map):
+        """
+        given the objects, the whole datamatrix and the original obj2ind mapping
+        return:
+        - the feature matrix concerning only the objects
+        - the object to matrix index mapping
+        """
+        obj_indx = [obj2ind_map[obj] for obj in objs]
+        
+        #get the sub matrix
+        submatrix = obj_feature_matrix[obj_indx, :]
+        obj2ind_submap = dict([(obj, ind) for obj in zip(objs, xrange(len(objs)))])
+
+        return submatrix, obj2ind_submap
+        
+    def _fb2vec(self, objs, fbs):
+        """
+        return the feedback vector for objects
+        """
+        return [fbs.get(obj, 0) for obj in objs]
+    
+    def recommend_keywords(self, top_n, mu, c, filters, sampler=None, feedbacks = None):
+        """
+        filters: a list of filtering function applied to the keywords before doing the LinRel computation, a keyword satisfying any of the filters will be considered candidate.
+        
         return a list of keyword ids as well as their scores
         """
         if feedbacks:#if given, update
             self._session.kw_feedbacks = feedbacks
             self._session.kw_fb_hist = feedbacks
         else:
-            self._session.kw_fb_hist = {}
-
-        ind_with_scores, ind_with_explt_scores, ind_with_explr_scores = self.generic_recommend(self._kw2doc_m, self._session.kw_feedbacks, self._kw_ind,
-                                                                                 mu, c)
+            self._session.kw_fb_hist = {}        
+        
+        #do some filtering and form the corresponding sub matrix
+        filtered_kws = self._filter_objs(self.kw_ind_map.keys(), self._session.kw_feedbacks, filters)
+        kw2doc_submat, kw_ind_map = self._submatrix_and_indexing(filtered_kws, self.kw2doc_m, self.kw_ind_map)
+        
+        if sampler:
+            pass#do some sampling here
+            
+        ind_with_scores, ind_with_explt_scores, ind_with_explr_scores = self.generic_recommend(kw2doc_submat, self._session.kw_feedbacks, kw_ind_map,
+                                                                                               mu, c)
+        # ind_with_scores, ind_with_explt_scores, ind_with_explr_scores = self.generic_recommend(self._kw2doc_m, self._session.kw_feedbacks, self._kw_ind, mu, c)
         
         id_with_scores = [(self._kw_ind_r[ind], score) for ind,score in ind_with_scores]
         id_with_explr_scores = [(self._kw_ind_r[ind], score) for ind,score in ind_with_explr_scores]
@@ -254,7 +305,7 @@ class LinRelRecommender(Recommender):
             
         return kws
         
-    def recommend_documents(self, top_n, mu, c, feedbacks = None):
+    def recommend_documents(self, top_n, mu, c, filters, sampler = None, feedbacks = None):
         """
         return a list of document ids as well as the scores
         """
@@ -264,7 +315,14 @@ class LinRelRecommender(Recommender):
         else:
             self._session.doc_fb_hist = {}
 
-        ind_with_scores, ind_with_explt_scores, ind_with_explr_scores = self.generic_recommend(self._doc2kw_m, self._session.doc_feedbacks, self._doc_ind,
+        #do some filtering and form the corresponding sub matrix
+        filtered_docs = self._filter_objs(self.doc_ind_map.keys(), self._session.doc_feedbacks, filters)
+        doc2kw_submat, doc_ind_map = self._submatrix_and_indexing(filtered_docs, self.doc2kw_m,n self.doc_ind_map)
+        
+        if sampler:
+            pass#do some sampling here
+
+        ind_with_scores, ind_with_explt_scores, ind_with_explr_scores = self.generic_recommend(doc2kw_submat, self._session.doc_feedbacks, doc_ind_map,
                                                                                                mu, c)
         
         # the history also

@@ -1,4 +1,3 @@
-
 \documentclass[10pt,a4paper]{article}
 
 \usepackage[utf8]{inputenc}
@@ -126,7 +125,7 @@ Basic system setup parameters are:
 
 Feedbacks are allowed to propagate, which means user can indirectly give feedbacks to keywords when they interacts with the documents and vice versa.
 
-\subsection{ Rule of Thumb}
+\subsection{Rule of Thumb}
 
 Let's define:
 \begin{enumerate}
@@ -192,7 +191,7 @@ Using:
 to calculate the scores for each document and return the top \verb+recom_doc_num+ to the user.
 
 
-Keyword recommendation:
+\subsubsection{Keyword recommendation}
 
 Similar things happen to the keywords recommendation:
 
@@ -207,9 +206,66 @@ to calculate the scores for each document and return the top \verb+recom_kw_num+
 
 To allow for richer feedback information, keywords associated with the recommended documents in section ~\ref{linrel-doc-recom} is also returned to the user(but displayed in a less obvious way)
 
+\section{Sampling methods}
+Sampling methods are applied during the LinRel-based documents\&keywords recommendation. The purposes are:
+\begin{enumerate}
+\item to reduce the matrix dimension involved in the LinRel algorithm so as to speed up the process
+\item add randomness to document\&keyword selection in order to ``explore out''
+\end{enumerate}
+
+Thus, the recommendation process changes from:
+
+\begin{enumerate}
+\item receive feedback from user
+\item using the LinRel to rank the documents\&keywords
+\item return the top N documents\&keywords to the user
+\end{enumerate}
+
+to:
+
+\begin{enumerate}
+\item receive feedback from user
+\item sample a subset of documents\&keywords for LinRel to rank(for dimension reduction)
+\item using the LinRel to rank the sampled documents\&keywords
+\item sampling a subset of documents\&keywords(for exploring out)
+\item return the top N documents\&keywords from the sampled set to the user
+\end{enumerate}
+
+The following subsections are organized by the two different purposes of sampling.
+
+\subsection{Dimension reduction}
+This sampling process prepares the set of documents\&keywords for LinRel computation and it is performed in the following way:
+
+\begin{enumerate}
+\item sample documents, $docs_{sampled}$: sample from the set of documents, $docs_{source}$, which satisfy \textit{any} of the following: 
+  \begin{enumerate}
+  \item it has received some feedback \footnote{This point is mentioned by our last meeting}
+  \item any of its keywords has feedback\footnote{This point is mentioned by our last meeting}
+  \item it is similar to any of the documents with feedback received \footnote{The purpose of this step is to further add some exploration}
+  \item it contains keywords that are similar to the keywords with feedback received\footnote{Same purpose as the above point}
+  \end{enumerate}
+\item sample keywords, $kws_{sampled}$: sample from the set of keywords, $kws_{source}$ which satisfy \textit{any} of the following: 
+  \begin{enumerate}
+  \item it has received some feedback\footnote{This point is mentioned by our last meeting}
+  \item any of its documents has feedback\footnote{This point is mentioned by our last meeting}
+  \item it is similar to any of the keywords with feedback received\footnote{Same purpose as the above point}
+  \item it is associated with documents that are similar to documents with feedback received\footnote{Same purpose as the above point}
+  \item it is associated with any documents appearing in $docs_{source}$ or $docs_{sampled}$ \footnote{In order to let the returned documents and keywords be more assocaited with each other}
+  \end{enumerate}
+\end{enumerate}
+
+
+We can reverse the above sampling order, starting from keyword sampling first, and do the sampling in a similar fashion.
+
+\subsection{Exploring out}
+An extra sampling can be applied to the ranked documents\&keywords produced by LinRel algorithm in order to further ``explore out''.
+
+But I don't think this extra sampling is necessary because the purpose of ``exploring out'' for both documents and keywords are already done by LinRel algorithm. Adding a extra layer of sampling might not do any good, even it might decrease the result quality.
+
 \section{Source code}
 
 Source code is managed using git at \verb+https://vcs.hiit.fi/git/scinet3+.
+
 
 \newpage 
 
@@ -219,11 +275,3 @@ Source code is managed using git at \verb+https://vcs.hiit.fi/git/scinet3+.
 \newpage
 
 \end{document}
-
-
-
-
-
-
-
-

@@ -41,6 +41,10 @@ define("linrel_kw_c", default=0.2, help="Value for c in the linrel algorithm for
 define("linrel_doc_mu", default=1, help="Value for \mu in the linrel algorithm for document")
 define("linrel_doc_c", default=0.2, help="Value for c in the linrel algorithm for document")
 
+
+define("kw_filtering_threshold", default=100, help="The feedback threshold used when filtering keywords")
+define("doc_filtering_threshold", default=100, help="The feedback threshold used when filtering documents")
+
 ERR_INVALID_POST_DATA = 1001
 
 class Application(tornado.web.Application):
@@ -140,12 +144,14 @@ class RecommandHandler(BaseHandler):
                                        self.kwdoc_data._kw2doc_m, self.kwdoc_data._doc2kw_m)
             
             rec_kws = engine.recommend_keywords(options.recom_kw_num, 
-                                                   options.linrel_kw_mu, options.linrel_kw_c, 
-                                                   feedbacks = kw_fb)
+                                                options.linrel_kw_mu, options.linrel_kw_c, 
+                                                filters = [ThresholdBasedFilter.get_filter(options.kw_filtering_threshold)]
+                                                feedbacks = kw_fb)
             
             rec_docs = engine.recommend_documents(options.recom_doc_num, 
-                                                     options.linrel_doc_mu, options.linrel_doc_c, 
-                                                     feedbacks = doc_fb)                
+                                                  options.linrel_doc_mu, options.linrel_doc_c,
+                                                  filters = [ThresholdBasedFilter.get_filter(options.doc_filtering_threshold)]
+                                                  feedbacks = doc_fb)
 
         #add the scores for kws
         print rec_kws

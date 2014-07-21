@@ -17,7 +17,7 @@ public class ExtractKeywordsAndSaveToDB
     
     public static void main(String[] args) throws SQLException, ClassNotFoundException
     {
-	Integer upper = 69853;
+	
 	
 	Extractor extractor = new Extractor();
 	extractor.refinePhrases(true);
@@ -34,10 +34,13 @@ public class ExtractKeywordsAndSaveToDB
 	    .getConnection("jdbc:mysql://ugluk/scinet3?"
 			   + "user=hxiao&password=xh24206688");
 
-	prepSelStmt = conn.prepareStatement("SELECT id, abstract FROM archive WHERE id = ?");
-	prepUpdStmt = conn.prepareStatement("UPDATE archive SET keywords = ? WHERE id = ?");
+	// prepSelStmt = conn.prepareStatement("SELECT id, abstract FROM archive WHERE id = ?");
+	prepSelStmt = conn.prepareStatement("SELECT id, processed_content as abstract FROM webpage WHERE id = ?");
+	// prepUpdStmt = conn.prepareStatement("UPDATE archive SET keywords = ? WHERE id = ?");
 	
-	for(Integer rowId = 1; rowId <= upper; rowId++){
+	//Integer upper = 69853;
+	Integer upper = 163;
+	for(Integer rowId = upper; rowId <= upper; rowId++){
 	    System.out.println(rowId);
 
 	    prepSelStmt.setInt(1, rowId);
@@ -47,7 +50,7 @@ public class ExtractKeywordsAndSaveToDB
 	    rs.next();
 
 	    String abst = rs.getString("abstract");
-	
+
 	    String [] topKeys = extractor.getTopN(12, abst, false);
 	
 	    JSONArray list = new JSONArray();
@@ -61,14 +64,14 @@ public class ExtractKeywordsAndSaveToDB
 		list.writeJSONString(out);
 		String jsonText = out.toString();
 		
-		//System.out.print(abst);
-		//System.out.print(jsonText);
+		System.out.print(abst);
+		System.out.print(jsonText);
+		
+		// prepUpdStmt.setString(1, jsonText);
+		// prepUpdStmt.setInt(2, rowId);
+		
+		// prepUpdStmt.executeUpdate();
 
-		prepUpdStmt.setString(1, jsonText);
-		prepUpdStmt.setInt(2, rowId);
-		
-		prepUpdStmt.executeUpdate();
-		
 		//conn.commit();				
 	    }
 	    catch(IOException e){
