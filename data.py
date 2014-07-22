@@ -178,6 +178,18 @@ class KwDocData(object):
             self.__doc_ind_r = dict([(ind, doc_id ) for doc_id, ind in self.__doc_ind.items()])
         return self.__doc_ind_r
 
+    @property
+    def __dict__(self):
+        return {
+            "kw_ind": self._kw_ind,
+            "doc_ind": self._doc_ind,
+            "kw_ind_r": self._kw_ind_r,
+            "doc_ind_r": self._doc_ind_r,
+            "kw2doc_m": self._kw2doc_m,
+            "doc2kw_m": self._doc2kw_m
+        }
+        
+
     def __init__(self, kw_ind, doc_ind, kw2doc_m, doc2kw_m):
         """
         kw_ind: keyword id to matrix row index mapping
@@ -194,8 +206,12 @@ class KwDocData(object):
         self.__kw_ind_r = None
         self.__doc_ind_r = None        
 
+
+
 if __name__ == "__main__":
     # d = test_matrix()
     # print d['doc2kw_m'].toarray()
     # print d['kw_ind']
-    insert_test_data(get_test_data())
+    # insert_test_data(get_test_data())
+
+    d = kw2doc_matrix('archive', 'archive')

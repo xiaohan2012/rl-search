@@ -11,12 +11,14 @@ from tornado.options import define, options
 import pickle
 
 from session import RedisRecommendationSessionHandler
-from engine import LinRelRecommender, QueryBasedRecommender
+from engine import LinRelRecommender, QueryBasedRecommender, Recommender
 
 from base_handlers import BaseHandler
 from data import kw2doc_matrix, KwDocData
 from util import get_weights, iter_summary
-from document import Document 
+from model import Document 
+
+from filters import make_threshold_filter
 
 define("port", default=8000, help="run on the given port", type=int)
 define("mysql_port", default=3306, help="db's port", type=int)
@@ -42,8 +44,11 @@ define("linrel_doc_mu", default=1, help="Value for \mu in the linrel algorithm f
 define("linrel_doc_c", default=0.2, help="Value for c in the linrel algorithm for document")
 
 
-define("kw_filtering_threshold", default=100, help="The feedback threshold used when filtering keywords")
-define("doc_filtering_threshold", default=100, help="The feedback threshold used when filtering documents")
+define("kw_fb_threshold", default= 0.2, help="The feedback threshold used when filtering keywords")
+define("kw_fb_from_docs_threshold", default= 0.0, help="The feedback(from documents) threshold used when filtering keywords")
+define("doc_fb_threshold", default= 0.2, help="The feedback threshold used when filtering documents")
+define("doc_fb_from_kws_threshold", default= 0.0, help="The feedback(from keywords) threshold used when filtering documents")
+
 
 ERR_INVALID_POST_DATA = 1001
 
@@ -65,6 +70,9 @@ class Application(tornado.web.Application):
         self.redis = redis.StrictRedis(host=options.redis_host, port=options.redis_port, db=options.redis_db)
         self.kwdoc_data = kw2doc_matrix(table=options.table, keyword_field_name = 'keywords', refresh = options.refresh_pickle) 
     
+        #config LinRel recommender
+        Recommender.init(self.db, options.table, **self.kwdoc_data.__dict__)        
+        
 class RecommandHandler(BaseHandler):        
     def _fill_kw_weight(self, kws, docs):
         """fill in documents' weight for each keyword"""        
@@ -120,9 +128,7 @@ class RecommandHandler(BaseHandler):
         if not self.session_id:  #if no session id, start a new one
             print 'start a session..', session.session_id
             print 'Query: ', query
-            engine = QueryBasedRecommender(self.db, options.table, 
-                                           self.kwdoc_data._kw_ind, self.kwdoc_data._doc_ind, 
-                                           self.kwdoc_data._kw2doc_m, self.kwdoc_data._doc2kw_m) 
+            engine = QueryBasedRecommender() 
             
             rec_docs = engine.recommend_documents(query, options.recom_doc_num)
             
@@ -138,19 +144,21 @@ class RecommandHandler(BaseHandler):
             print 'continue the session..', session.session_id
             if not kw_fb or not doc_fb:
                 self.json_fail(ERR_INVALID_POST_DATA, 'Since you are in a session, please give the feedbacks for both keywords and documents')
-
-            engine = LinRelRecommender(session, self.db, options.table,
-                                       self.kwdoc_data._kw_ind, self.kwdoc_data._doc_ind, 
-                                       self.kwdoc_data._kw2doc_m, self.kwdoc_data._doc2kw_m)
+                
+            engine = LinRelRecommender(session)
             
+            fb_filter = make_threshold_filter(lambda o: o.fb(session), options.kw_fb_threshold)
+            fb_from_kws_filter = make_threshold_filter(lambda o: o.fb_from_kws(session), options.kw_fb_threshold)
+            fb_from_docs_filter = make_threshold_filter(lambda o: o.fb_from_docs(session), options.kw_fb_threshold)
+
             rec_kws = engine.recommend_keywords(options.recom_kw_num, 
                                                 options.linrel_kw_mu, options.linrel_kw_c, 
-                                                filters = [ThresholdBasedFilter.get_filter(options.kw_filtering_threshold)]
+                                                filters = [fb_filter, fb_from_docs_filter],
                                                 feedbacks = kw_fb)
             
             rec_docs = engine.recommend_documents(options.recom_doc_num, 
                                                   options.linrel_doc_mu, options.linrel_doc_c,
-                                                  filters = [ThresholdBasedFilter.get_filter(options.doc_filtering_threshold)]
+                                                  filters = [fb_filter, fb_from_kws_filter],
                                                   feedbacks = doc_fb)
 
         #add the scores for kws
@@ -163,13 +171,10 @@ class RecommandHandler(BaseHandler):
         self._fill_kw_weight(rec_kws, rec_docs)
         
         #get associated keywords
-        rec_kw_ids = [kw['id'] for kw in rec_kws]
-        extra_kw_ids = set([kw_id
-                        for doc in rec_docs
-                        for kw_id in doc['keywords']
-                        if kw_id not in rec_kw_ids])
-        
-        extra_kws = self._get_kws(extra_kw_ids)
+        extra_kws = list(set([kw
+                         for doc in rec_docs
+                         for kw in doc['keywords']
+                         if kw not in rec_kws]))
         
         for kw in extra_kws:
             kw['display'] = False
@@ -177,28 +182,31 @@ class RecommandHandler(BaseHandler):
             
         self._fill_kw_weight(extra_kws, rec_docs)
         
-        kw_dict = dict([(kw, kw) for kw in self.kwdoc_data._kw_ind.keys()])
-        doc_dict = dict([(doc_id, Document(self._get_doc(doc_id))) for doc_id in self.kwdoc_data._doc_ind.keys()])
+        # kws = dict([(kw, kw) for kw in self.kwdoc_data._kw_ind.keys()])
+        # doc_dict = dict([(doc_id, Document(self._get_doc(doc_id))) for doc_id in self.kwdoc_data._doc_ind.keys()])
 
-        #print the summary
-        iter_summary(kw_dict = kw_dict,
-                     doc_dict = doc_dict,
-                     **session.data)
+        # # print the summary
+        # iter_summary(kw_dict = kw_dict,
+        #              doc_dict = doc_dict,
+        #              **session.data)
         
         print "Recommended documents:"
         for doc in rec_docs:
             print doc
 
         print "Recommended keywords:"
-        for kw in rec_kw_ids:
+        for kw in rec_kws:
             print kw,
         print 
 
-        print 'extra_kw_ids:', extra_kw_ids
+        print 'extra_kws:', extra_kws
+        print 'all keywords:\n', [kw.dict for kw in (rec_kws + extra_kws)]
+        print 'all documents:\n', [doc.dict for doc in rec_docs]
+
         self.json_ok({'session_id': session.session_id,
-                      'kws': (rec_kws + extra_kws),
-                      'docs': rec_docs})
-                                
+                      'kws': [kw.dict for kw in (rec_kws + extra_kws)],
+                      'docs': [doc.dict for doc in rec_docs]})
+        
 class MainHandler(BaseHandler):
     def get(self):
         self.render("index.html")

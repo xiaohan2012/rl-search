@@ -5,7 +5,7 @@ import random
 from numpy import matrix
 
 from util import iter_summary
-from document import Document
+from model import Document, Keyword, config as config_model
 
 from linrel import linrel
 from data import KwDocData
@@ -14,30 +14,18 @@ from pprint import pprint
 
 random.seed(123456)
 
-class Recommender(KwDocData):
+class Recommender(object):
     """
     Recommendation engine that handles the recommending stuff
     """
-    def __init__(self, db, table, *args, **kwargs):
-        """
-        db: the db connection
-        table: the table to query against
-        args/kwargs: the matrix and index mapping stuff
-        """
-        self._db = db
-        self._table = table
-        super(Recommender, self).__init__(*args, **kwargs)
-    
-    def _get_doc(self, doc_id):
-        """get document by id from database"""
-        sql_temp = 'SELECT id, title, keywords FROM %s WHERE id=%%s' %self._table
-        row = self._db.get(sql_temp, doc_id)
-        row['keywords'] = json.loads(row['keywords'])
-        return Document(row)
+    @classmethod
+    def init(cls, conn, table, **kwargs):
+        config_model(conn, table, kwargs)        
 
-    def _get_kw(self, kw_id):
-        """simple wrapper"""
-        return {'id': kw_id}
+        for k, v in kwargs.items():
+            setattr(cls, k, v)
+        print "loading docs from db..."
+        Document.load_all_from_db()
         
     def recommend_keywords(self, *args, **kwargs):
         raise NotImplementedError
@@ -51,12 +39,12 @@ class QueryBasedRecommender(Recommender):
     """
     def _word_vec(self, words):
         """
-        given the words return the word binary vector
+        given the word strings return the word binary vector
         """
-        kw_total_num = len(self._kw_ind.keys())
+        kw_total_num = len(self.kw_ind.keys())
         word_vec = np.zeros((kw_total_num, 1))
         for word in words:
-            word_vec[self._kw_ind[word], 0] = 1
+            word_vec[self.kw_ind[word], 0] = 1
         return matrix(word_vec)
 
     def associated_documents_by_keywords(self, keywords, n):
@@ -66,12 +54,12 @@ class QueryBasedRecommender(Recommender):
          #get all doc ids of which the document contains any of the keywords
          kw_ids = [kw['id'] for kw in keywords]
          word_vec = self._word_vec(kw_ids)
-         row_idx, _ = np.nonzero(self._doc2kw_m * word_vec)
-         doc_ids= [self._doc_ind_r[row_id] 
+         row_idx, _ = np.nonzero(self.doc2kw_m * word_vec)
+         doc_ids= [self.doc_ind_r[row_id] 
                    for row_id in row_idx.tolist()[0]]
 
          #sample it
-         return [self._get_doc(doc_id) 
+         return [Document.get(doc_id)
                  for doc_id in random.sample(doc_ids, n)]
          
     def recommend_keywords(self, rec_docs, kw_num, kw_num_from_docs):
@@ -102,10 +90,10 @@ class QueryBasedRecommender(Recommender):
             kws_from_docs = random.sample(list(all_kws_from_docs), kw_num_from_docs)
 
         #get all the documents that have keywords in common with the documents being recommended
-        word_vec = self._word_vec(kws_from_docs)
-        row_idx, _ = np.nonzero(self._doc2kw_m * word_vec)
+        word_vec = self._word_vec([kw.id for kw in kws_from_docs])
+        row_idx, _ = np.nonzero(self.doc2kw_m * word_vec)
 
-        assoc_docs = [self._get_doc(self._doc_ind_r[idx]) 
+        assoc_docs = [Document.get(self.doc_ind_r[idx])
                       for idx in row_idx.tolist()[0]]
                 
         keywords = set([kw for doc in assoc_docs for kw in doc['keywords']])
@@ -118,20 +106,18 @@ class QueryBasedRecommender(Recommender):
         else:
             extra_keywords = random.sample(list(remaining_keywords), kw_num - kw_num_from_docs)
         
-        #return the joined set of keywords
+        #return the joined set of keywordsn
         kws = []
-        for kw_id in kws_from_docs:
-            kw = self._get_kw(kw_id)
+        for kw in kws_from_docs:
             kw['recommended'] = True
             kws.append(kw)
 
-        for kw_id in extra_keywords:
-            kw = self._get_kw(kw_id)
+        for kw in extra_keywords:
             kw['recommended'] = False
             kws.append(kw)            
 
         return kws
-
+        
     def recommend_documents(self, query, top_n):
         """
         Given the query, 
@@ -142,14 +128,14 @@ class QueryBasedRecommender(Recommender):
         word_vec = self._word_vec(query_words)
         
         #get the scores for documents and scort it
-        scores = self._doc2kw_m * word_vec
+        scores = self.doc2kw_m * word_vec
         sorted_scores = sorted(enumerate(np.array(scores.T).tolist()[0]), key = lambda (id, score): score, reverse = True)
         
         #get the top_n documents 
         docs = []
         for ind, score in sorted_scores[:top_n]:
-            doc_id = self._doc_ind_r[ind]
-            doc = self._get_doc(doc_id)
+            doc_id = self.doc_ind_r[ind]
+            doc = Document.get(doc_id)
             doc['score'] = score
             docs.append(doc)
 
@@ -173,18 +159,13 @@ def test_query(query):
     
 
 class LinRelRecommender(Recommender): 
-    def __init__(self, session, 
-                 kw_sampling_threshold,
-                 doc_sampling_threshold,
-                 *args, **kwargs):
+    def __init__(self, session, *args, **kwargs):
         """
         session: the session object used to retrieve session data
         args: the matrix and index mapping stuff
         """
-        
+
         self._session = session
-        self._kw_sampling_threshold = kw_sampling_threshold
-        self._doc_sampling_threshold = doc_sampling_threshold
         
         super(LinRelRecommender, self).__init__(*args, **kwargs)
         
@@ -227,7 +208,7 @@ class LinRelRecommender(Recommender):
         
         return sorted_scores, sorted_exploitation_scores, sorted_exploration_scores
     
-    def _filter_objs(self, objs, feedbacks, filters):
+    def _filter_objs(self, objs, filters):
         """
         we shall do some filtering here:
         select only the objects which passes at least one of the filters
@@ -237,9 +218,9 @@ class LinRelRecommender(Recommender):
         """
         sel_objs = set()
         for filter_func in filters:
-            sel_objs |= set(filter_func(kws, self.fb2vec(objs, feedbacks)))
+            sel_objs |= set(filter_func(objs))
             
-        return self_objs
+        return list(sel_objs)
         
     def _submatrix_and_indexing(self, objs, obj_feature_matrix, obj2ind_map):
         """
@@ -247,21 +228,17 @@ class LinRelRecommender(Recommender):
         return:
         - the feature matrix concerning only the objects
         - the object to matrix index mapping
+        - the inverse index to object mapping
         """
         obj_indx = [obj2ind_map[obj] for obj in objs]
         
         #get the sub matrix
         submatrix = obj_feature_matrix[obj_indx, :]
-        obj2ind_submap = dict([(obj, ind) for obj in zip(objs, xrange(len(objs)))])
+        obj2ind_submap = dict([(obj, ind) for obj, ind in zip(objs, xrange(len(objs)))])
+        ind2obj_submap = dict([(ind, obj) for obj, ind in zip(objs, xrange(len(objs)))])
 
-        return submatrix, obj2ind_submap
-        
-    def _fb2vec(self, objs, fbs):
-        """
-        return the feedback vector for objects
-        """
-        return [fbs.get(obj, 0) for obj in objs]
-    
+        return submatrix, obj2ind_submap, ind2obj_submap
+            
     def recommend_keywords(self, top_n, mu, c, filters, sampler=None, feedbacks = None):
         """
         filters: a list of filtering function applied to the keywords before doing the LinRel computation, a keyword satisfying any of the filters will be considered candidate.
@@ -275,19 +252,23 @@ class LinRelRecommender(Recommender):
             self._session.kw_fb_hist = {}        
         
         #do some filtering and form the corresponding sub matrix
-        filtered_kws = self._filter_objs(self.kw_ind_map.keys(), self._session.kw_feedbacks, filters)
-        kw2doc_submat, kw_ind_map = self._submatrix_and_indexing(filtered_kws, self.kw2doc_m, self.kw_ind_map)
+        filtered_kws = self._filter_objs(Keyword.all_kws, filters); filtered_kw_ids = [kw.id for kw in filtered_kws]
+        
+        kw2doc_submat, kw_ind_map, kw_ind_map_r = self._submatrix_and_indexing(filtered_kw_ids, self.kw2doc_m, self.kw_ind)
+        fbs = dict([(kw.id, kw.fb(self._session)) for kw in filtered_kws])
         
         if sampler:
             pass#do some sampling here
-            
-        ind_with_scores, ind_with_explt_scores, ind_with_explr_scores = self.generic_recommend(kw2doc_submat, self._session.kw_feedbacks, kw_ind_map,
-                                                                                               mu, c)
-        # ind_with_scores, ind_with_explt_scores, ind_with_explr_scores = self.generic_recommend(self._kw2doc_m, self._session.kw_feedbacks, self._kw_ind, mu, c)
+
+        print "kw2doc_submat=:\n", kw2doc_submat
+        print "kw_ind_map=:\n", kw_ind_map
         
-        id_with_scores = [(self._kw_ind_r[ind], score) for ind,score in ind_with_scores]
-        id_with_explr_scores = [(self._kw_ind_r[ind], score) for ind,score in ind_with_explr_scores]
-        id_with_explt_scores = [(self._kw_ind_r[ind], score) for ind,score in ind_with_explt_scores]
+        ind_with_scores, ind_with_explt_scores, ind_with_explr_scores = self.generic_recommend(kw2doc_submat, fbs, kw_ind_map,
+                                                                                               mu, c)
+        
+        id_with_scores = [(kw_ind_map_r[ind], score) for ind,score in ind_with_scores]
+        id_with_explr_scores = [(kw_ind_map_r[ind], score) for ind,score in ind_with_explr_scores]
+        id_with_explt_scores = [(kw_ind_map_r[ind], score) for ind,score in ind_with_explt_scores]
                 
         # save them to history
         self._session.kw_score_hist = dict(id_with_scores)
@@ -295,11 +276,11 @@ class LinRelRecommender(Recommender):
         self._session.kw_explt_score_hist = dict(id_with_explt_scores) 
         
         #prepare the documents
-        top_ids_with_scores = [(self._kw_ind_r[ind], score) for ind,score in ind_with_scores[:top_n]]
+        top_ids_with_scores = [(kw_ind_map_r[ind], score) for ind,score in ind_with_scores[:top_n]]
         
         kws = []
         for kw_id, score in top_ids_with_scores:
-            kw = self._get_kw(kw_id)
+            kw = Keyword.get(kw_id)
             kw['score'] = score
             kws.append(kw)
             
@@ -316,30 +297,30 @@ class LinRelRecommender(Recommender):
             self._session.doc_fb_hist = {}
 
         #do some filtering and form the corresponding sub matrix
-        filtered_docs = self._filter_objs(self.doc_ind_map.keys(), self._session.doc_feedbacks, filters)
-        doc2kw_submat, doc_ind_map = self._submatrix_and_indexing(filtered_docs, self.doc2kw_m,n self.doc_ind_map)
+        filtered_docs = self._filter_objs(Document.all_docs, filters); filtered_doc_ids = [doc.id for doc in filtered_docs]
         
+        doc2kw_submat, doc_ind_map, doc_ind_map_r = self._submatrix_and_indexing(filtered_doc_ids, self.doc2kw_m, self.doc_ind)
+        fbs = dict([(doc.id, doc.fb(self._session)) for doc in filtered_docs])
+
         if sampler:
             pass#do some sampling here
 
-        ind_with_scores, ind_with_explt_scores, ind_with_explr_scores = self.generic_recommend(doc2kw_submat, self._session.doc_feedbacks, doc_ind_map,
-                                                                                               mu, c)
-        
+        ind_with_scores, ind_with_explt_scores, ind_with_explr_scores = self.generic_recommend(doc2kw_submat, fbs, doc_ind_map,
+                                                                                               mu, c)        
         # the history also
-        id_with_scores = [(self._doc_ind_r[ind], score) for ind,score in ind_with_scores]
-        id_with_explr_scores = [(self._doc_ind_r[ind], score) for ind,score in ind_with_explr_scores]
-        id_with_explt_scores = [(self._doc_ind_r[ind], score) for ind,score in ind_with_explt_scores]
+        id_with_scores = [(doc_ind_map_r[ind], score) for ind,score in ind_with_scores]
+        id_with_explr_scores = [(doc_ind_map_r[ind], score) for ind,score in ind_with_explr_scores]
+        id_with_explt_scores = [(doc_ind_map_r[ind], score) for ind,score in ind_with_explt_scores]
         
         self._session.doc_score_hist = dict(id_with_scores)
         self._session.doc_explr_score_hist = dict(id_with_explr_scores)
         self._session.doc_explt_score_hist = dict(id_with_explt_scores) 
         
-                
-        top_ids_with_scores = [(self._doc_ind_r[ind], score) for ind, score in ind_with_scores[:top_n]]
+        top_ids_with_scores = [(doc_ind_map_r[ind], score) for ind, score in ind_with_scores[:top_n]]
 
         docs = []
         for doc_id, score in top_ids_with_scores:
-            doc = self._get_doc(doc_id)
+            doc = Document.get(doc_id)
             doc['score'] = score
 
             docs.append(doc)
@@ -354,19 +335,20 @@ def main():
     mu = 1
     c = 1
     
-    table = 'test'
-    db = torndb.Connection("%s:%s" % ('ugluk', 3306), 'scinet3', 'hxiao', 'xh24206688')    
+    db = 'archive'
+    table = 'archive'
+    db = torndb.Connection("%s:%s" % ('ugluk', 3306), db, 'hxiao', 'xh24206688')    
 
-    redis_conn = redis.StrictRedis(host='ugluk', port='6379', db='test')
+    redis_conn = redis.StrictRedis(host='ugluk', port='6379', db=db)
     #init session
     s = RedisRecommendationSessionHandler.get_session(redis_conn)
     
-    d_ = kw2doc_matrix('test')
-    linrel_r = LinRelRecommender(s, db, table, d_._kw_ind, d_._doc_ind, d_._kw2doc_m, d_._doc2kw_m)
-    query_r = QueryBasedRecommender(db, table, d_._kw_ind, d_._doc_ind, d_._kw2doc_m, d_._doc2kw_m)
+    d_ = kw2doc_matrix(db, table)
+    linrel_r = LinRelRecommender(s, db, table, d_.kw_ind, d_.doc_ind, d_.kw2doc_m, d_.doc2kw_m)
+    query_r = QueryBasedRecommender(db, table, d_.kw_ind, d_.doc_ind, d_.kw2doc_m, d_.doc2kw_m)
     
-    kw_dict = dict([(kw, kw) for kw in d_._kw_ind.keys()]) #kw_id -> kw
-    doc_dict = dict([(doc_id, query_r._get_doc(doc_id)) for doc_id in d_._doc_ind.keys()]) #doc_id -> doc
+    kw_dict = dict([(kw, kw) for kw in d_.kw_ind.keys()]) #kw_id -> kw
+    doc_dict = dict([(doc_id, query_r._get_doc(doc_id)) for doc_id in d_.doc_ind.keys()]) #doc_id -> doc
 
     query = raw_input('Your query:')
     docs = query_r.recommend_documents(query, top_n)

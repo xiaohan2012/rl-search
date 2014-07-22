@@ -2,6 +2,7 @@
 import pickle
 import torndb
 import json
+
 from tabulate import tabulate
 
 conn = torndb.Connection("%s:%s" % ('ugluk', 3306), 'archive', 'hxiao', 'xh24206688')
@@ -174,9 +175,19 @@ def remove_keywords(table, exclude = {None}, keyword_field_name='processed_keywo
         filtered_kws = [kw for kw in json.loads(row[keyword_field_name]) if kw not in exclude]
         conn.execute("UPDATE %s SET %s = %%s where id=%%s" %(table, keyword_field_name), json.dumps(filtered_kws), row['id'])
 
+def dump_doc2kw_list(db='archive', table='archive', path='pickles/archive_doc2kw_list.pic', kw_field_name='keywords'):
+    """
+    dumps a list of doc->keyword strings into path
+    """
+    conn = torndb.Connection("%s:%s" % ('ugluk', 3306), db, 'hxiao', 'xh24206688')    
+    rows = conn.query('SELECT id, %s FROM %s' %(kw_field_name, table))
+    doc_kw_tuples = [(row['id'], row[kw_field_name]) for row in rows]
+    pickle.dump(doc_kw_tuples, 
+         open(path, 'w'))
 
 if __name__ == "__main__":
     # corp = json.lad(open('corpus_collection/corpus_collection/john.json', 'r'))
     # corp = filter(lambda doc: len(doc['keywords']) > 0, corp)
-    # import_corpus(corp, 'john')
-    remove_keywords('archive', keyword_field_name="keywords")
+    # import_corpus(cporp, 'john')
+    #remove_keywords('archive', keyword_field_name="keywords")
+    dump_doc2kw_list()
