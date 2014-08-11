@@ -1,4 +1,14 @@
-import torndb, os, random, types
+#############################
+# This module mainly dealing with the loading of:
+# 1. document/keyword feature matrix
+# 2. document/keyword-to-matrix-index mapping and inverse mapping
+#############################
+
+__all__ = ["load_fmim"]
+
+import sys, os, random, types, traceback
+
+import torndb
 
 from json import loads, dumps
 from pickle import dump, load
@@ -8,8 +18,10 @@ from sklearn.feature_extraction.text import TfidfTransformer
 
 from setting import MYSQL_CONN_SETTING
 
-def get_all_keywords(db='archive', table="brown", keyword_field_name = "processed_keywords", refresh = False):
-    db = torndb.Connection("%s:%s" % (MYSQL_CONN_SETTING['host'], MYSQL_CONN_SETTING['port']), db, MYSQL_CONN_SETTING['user'], MYSQL_CONN_SETTING['passwd'])
+def get_all_keywords(db, table="brown", keyword_field_name = "processed_keywords", refresh = False):
+    """
+    db: torndb.Connection, the database connection
+    """
     
     kw_path = 'pickles/%s-kws.pickle' %table
 
@@ -83,7 +95,8 @@ def test_matrix():
 
 def gen_kw_doc_matrix(docs, keywords, kw_field_name, doc_n = None, tfidf=True):
     """
-    build the kw2doc, doc2kw and kw/doc_id to kw/doc_row_index mapping
+    build feature matrix and index mapping
+    
     docs: list of dict
     """
     kw_ind_map = dict((kw, ind) for ind, kw in enumerate(keywords)) #keyword to row index mapping
@@ -117,39 +130,56 @@ def gen_kw_doc_matrix(docs, keywords, kw_field_name, doc_n = None, tfidf=True):
             "doc2kw_m": doc2kw_m, 
             "kw2doc_m": kw2doc_m}
 
-def kw2doc_matrix(db="archive", table="brown", keyword_field_name = 'processed_keywords', keywords = None, tfidf=True, refresh = False):
+def load_fmim(db, table="brown", keyword_field_name = 'processed_keywords', tfidf=True, refresh = False):
     """
-    get keyword to document matrices as well as the transpose
-    if tfidf is True, perform tfidf on both matrix
+    Get FeatureMatrixAndIndexMapping object:
+    
+    Param:
+    db: Connection, the database conncetion
+    table: string, the table to be used
+    keyword_field_name: string,  the name of the table field which shall be used to get the keywords
+    tfidf: boolean, use tfidf or not
+    refresh: boolean,  refresh the cache or not. If False, read from cache. Otherwise, read from db and cache it
     """
+    
     pic_path = 'pickles/%s_linrel_matrix.pic' %table
     if os.path.exists(pic_path) and not refresh:
         print 'linrel matrix pickle exists, load it'
-        return KwDocData(**load(open(pic_path)))
+        return FeatureMatrixAndIndexMapping(**load(open(pic_path)))
     else:
         print 'linrel matrix pickle NOT exist, generate it'
         all_keywords= get_all_keywords(db, table, keyword_field_name = keyword_field_name)
 
-        #get the number of documents
-        db = torndb.Connection("%s:%s" % (MYSQL_CONN_SETTING['host'], MYSQL_CONN_SETTING['port']), db, MYSQL_CONN_SETTING['user'], MYSQL_CONN_SETTING['passwd']) 
-        doc_n = db.get("SELECT count(id) from %s;" %table)['count(id)']
-
-        #generate the matrix
-        docs = db.query("SELECT id, %s from %s;" %(keyword_field_name, table))
+        try:
+            #get the number of documents
+            doc_n = db.get("SELECT count(id) from %s;" %table)['count(id)']
+            
+            #generate the matrix
+            docs = db.query("SELECT id, %s from %s;" %(keyword_field_name, table))
+        except:
+            traceback.print_exc(file=sys.stdout)
+            return
+        finally:
+            db.close()
+            
         for doc in docs:
-            doc[keyword_field_name] = loads(doc[keyword_field_name])#parse the json raw string
+            doc[keyword_field_name] = loads(doc[keyword_field_name]) #parse the json raw string
 
+        #generate the summary data.....
         return_val = gen_kw_doc_matrix(docs, all_keywords, keyword_field_name, doc_n = doc_n)
         
+        #cache it...
         dump(return_val, open(pic_path, 'w'))
-        db.close()
-        return KwDocData(**return_val)
+        
+        return FeatureMatrixAndIndexMapping(**return_val)
 
 
-class KwDocData(object):
+class FeatureMatrixAndIndexMapping(object):
     """
-    data wrapper associated with keyword and document
+    Feature matrix and indexing mapping for documents and keywords
     """
+    DICT_FIELDS = ["kw_ind", "doc_ind", "kw_ind_r", "doc_ind_r", "kw2doc_m", "doc2kw_m"]
+    
     @property
     def _kw2doc_m(self):
         return self.__kw2doc_m
@@ -180,15 +210,9 @@ class KwDocData(object):
 
     @property
     def __dict__(self):
-        return {
-            "kw_ind": self._kw_ind,
-            "doc_ind": self._doc_ind,
-            "kw_ind_r": self._kw_ind_r,
-            "doc_ind_r": self._doc_ind_r,
-            "kw2doc_m": self._kw2doc_m,
-            "doc2kw_m": self._doc2kw_m
-        }
-        
+        """export as a dictionary"""
+        return dict([(field, getattr(self, "_%s" %field))
+                     for field in  self.__class__.DICT_FIELDS])
 
     def __init__(self, kw_ind, doc_ind, kw2doc_m, doc2kw_m):
         """

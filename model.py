@@ -1,24 +1,46 @@
+#######################
+# The model used in this app:
+# 1. Document
+# 2. Keyword
+# in included here
+
+#######################
+__all__ = ["Document", "Keyword", "config_model"]
+
 import json
 import numpy as np
 from pprint import pprint
 from cPickle import load
 from copy import copy
 
-class Document(dict):
+from data import FeatureMatrixAndIndexMapping as fmim
+from fb_receiver import KeywordFeedbackReceiver, DocumentFeedbackReceiver
+
+class Document(DocumentFeedbackReceiver, dict):
     __all_docs_by_id = {}
     all_docs = []
-
     db_conn = None
     table = None
             
     @classmethod
     def config(cls, conn, table, **kwargs):
+        """
+        kwargs should be 
+        """
         cls.db_conn = conn
         cls.table = table
 
         for key, value in kwargs.items():
             setattr(cls, key, value)
             
+    @classmethod
+    def __ensure_configured(cls):
+        assert cls.db_conn is not None, "database connection should not None"
+        assert cls.table is not None,  "table should not None"
+
+        for field in fmim.DICT_FIELDS:
+            assert getattr(cls, field) is not None, "%s should be not None" %field
+        
     @classmethod
     def prepare_doc(cls, doc_dict):
         doc = Document(doc_dict)
@@ -29,13 +51,19 @@ class Document(dict):
             kws = [Keyword.get(kw_str) for kw_str in kw_strs]
             doc['keywords'] = kws
 
-        #mutual binding
+        #mutual binding for keywords
         for kw in doc['keywords']: kw.add_assoc_doc(doc)
+
+        #set dict keys as attributes
+        for key, value in doc.items():
+            setattr(doc, key, value)
 
         return doc
         
     @classmethod
     def load_all_from_db(cls):
+        cls.__ensure_configured()
+        
         rows = cls.db_conn.query("SELECT * from %s" %(cls.table))
         for row in rows:
             doc = cls.prepare_doc(row)
@@ -50,6 +78,8 @@ class Document(dict):
         if cls.__all_docs_by_id.has_key(doc_id):
             return cls.__all_docs_by_id[doc_id]
         else:
+            cls.__ensure_configured()
+            
             row = cls.db_conn.get("SELECT * from %s where id=%d" %(cls.table, doc_id))
             doc = cls.prepare_doc(row)
             cls.__all_docs_by_id[doc_id] = doc
@@ -58,8 +88,10 @@ class Document(dict):
     @property
     def _kw_weight(self):
         """
-        return (keyword_str -> weight) dictionary
+        return (Keyword -> weight) dictionary
         """
+        self.__ensure_configured()
+        
         if self.__kw_weight is None:
             
             cls = self.__class__
@@ -81,6 +113,9 @@ class Document(dict):
         return dict([(a, self[a]) for a in attrs])
 
     def fb(self, session):
+        """
+        Feedback received along the way
+        """
         return session.doc_feedbacks.get(self.id, 0)
         
     def fb_from_kws(self, session):
@@ -90,15 +125,19 @@ class Document(dict):
         """
         kw_w_dict = self._kw_weight
         weight_sum = sum(kw_w_dict.values())
-        return sum([kw.fb(session) * kw_w_dict[kw] for kw in self.keywords]) / weight_sum
-
-    def __init__(self, *args, **kwargs):
-        super(Document, self).__init__(*args, **kwargs)
+        
+        return sum([kw.fb(session) * kw_w_dict[kw] 
+                    for kw in self.keywords]) \
+                / weight_sum
+    
+    def __init__(self, *args, **kwargs):                
         self.__dict__ = self #propagate the json data to attributes
 
         self.__original_keys = self.keys() #original dictionary keys/data fields
 
         self.__kw_weight = None
+    
+        super(Document, self).__init__(*args, **kwargs)
     
     def __repr__(self):
         return '%d. "%s" (%s)' %(self['id'], self['title'], 
@@ -111,7 +150,7 @@ class Document(dict):
     def __eq__(self, other):
         return (self.id) == (other.id)
 
-class Keyword(dict):
+class Keyword(KeywordFeedbackReceiver, dict):
     __all_kws_by_id = {}
     all_kws = []
     
@@ -119,6 +158,11 @@ class Keyword(dict):
     def config(cls, **kwargs):
         for key, value in kwargs.items():
             setattr(cls, key, value)
+
+    @classmethod
+    def __ensure_configured(cls):
+        for field in fmim.DICT_FIELDS:
+            assert getattr(cls, field) is not None, "%s should be not None" %field
     
     @classmethod
     def get(cls, kw_str):
@@ -135,19 +179,21 @@ class Keyword(dict):
             return kw
 
     @property
-    def id(self):
-        return self.__str
+    def id(self):    
+        return self['id']
 
     @property
     def _doc_weight(self):
         """
         return (doc -> weight) dictionary
         """
+        self.__class__.__ensure_configured()
+
         if self.__doc_weight is None:
             
             cls = self.__class__
             
-            feature_vec = cls.kw2doc_m[cls.kw_ind[self.__str],:]
+            feature_vec = cls.kw2doc_m[cls.kw_ind[self.id],:]
             _, doc_idx = np.nonzero(feature_vec)
 
             doc_ids, weights = ([cls.doc_ind_r[ind] for ind in doc_idx], 
@@ -156,84 +202,79 @@ class Keyword(dict):
                                       for doc_id,weight in zip(doc_ids, weights) ])
 
         return self.__doc_weight
-
+        
     @property
     def dict(self):
         attrs = [a for a in self.keys() if not a.startswith('_')]
         return dict([(a, self[a]) for a in attrs])
-    
-    def fb(self, session):
-        return session.kw_feedbacks.get(self.id, 0)
 
-    def fb_from_docs(self, session):
-        doc_w_dict = self._doc_weight
-        weight_sum = sum(doc_w_dict.values())
-        return sum([doc.fb(session) * doc_w_dict[doc] for doc in self.docs]) / weight_sum
-
-
+    def add_assoc_doc(self, doc):
+        self.docs.append(doc)
+        
     def __init__(self, kw_str):
-        super(Keyword, self).__init__()
         self['id'] = kw_str
-        self.__str = kw_str
         
         self.docs = []
 
         self.__doc_weight = None
         
-    def add_assoc_doc(self, doc):
-        self.docs.append(doc)
-
+        super(Keyword, self).__init__()
+        
     def __repr__(self):
-        return "%s: %s" %(self.__class__.__name__, self.__str)
+        return "\"%s: %s\"" %(self.__class__.__name__, self['id'])
 
     def __hash__(self):
-        return hash(self.__str)
+        return hash(self['id'])
 
     def __eq__(self, other):
-        return (self.__str) == (other.__str)
+        return (self['id']) == (other['id'])
 
-def config(conn, table, matrices_and_indices):
+def config_model(conn, table, matrices_and_indices, doc_alpha, kw_alpha):
     #config the database and session stuff
     Document.config(conn, table, **matrices_and_indices)
+    Document.set_alpha(doc_alpha)
+    
     Keyword.config(**matrices_and_indices)
-
+    Keyword.set_alpha(kw_alpha)
+    
 def test():    
-    db = 'archive'
-    table = 'archive_500'
+    # db = 'archive'
+    # table = 'archive_500'
     
-    import torndb
-    conn = torndb.Connection("%s:%s" % ('ugluk', 3306), db, 'hxiao', 'xh24206688')
+    # import torndb
+    # conn = torndb.Connection("%s:%s" % ('ugluk', 3306), db, 'hxiao', 'xh24206688')
 
-    from data import kw2doc_matrix
-    matrices_and_indices = kw2doc_matrix(db, table, keyword_field_name = 'keywords').__dict__
+    # from data import kw2doc_matrix
+    # matrices_and_indices = kw2doc_matrix(conn, table, keyword_field_name = 'keywords').__dict__
 
-    config(conn, table, matrices_and_indices)
+    # config(conn, table, matrices_and_indices, 0.7, 0.7)
 
-    #prepare the session
-    from session import RedisRecommendationSessionHandler
-    import redis
-    redis_db="archive"
-    redis_conn = redis.StrictRedis(host='ugluk', port=6379, db=redis_db)
-    session = RedisRecommendationSessionHandler.get_session(redis_conn)
+    # #prepare the session
+    # from session import RedisRecommendationSessionHandler
+    # import redis
+    # redis_db="archive"
+    # redis_conn = redis.StrictRedis(host='ugluk', port=6379, db=redis_db)
+    # session = RedisRecommendationSessionHandler.get_session(redis_conn)
     
-    #load the documents 
-    docs = Document.load_all_from_db()
-    session.doc_feedbacks = {1: .2}
-    session.kw_feedbacks = {'pebble game': .2, 'graphs': .5}
+    # #load the documents 
+    # docs = Document.load_all_from_db()
+    # session.doc_feedbacks = {1: .2}
+    # session.kw_feedbacks = {'pebble game': .2, 'graphs': .5}
     
-    doc = Document.get(1)
-    print doc
-    print doc.fb(session)
-    print doc.fb_from_kws(session)
+    # doc = Document.get(1)
+    # print doc
+    # print doc.fb(session)
+    # print doc.fb_from_kws(session)
     
-    pprint(docs[0].keywords)
-    pprint(docs[0].keywords[0].docs)
+    # pprint(docs[0].keywords)
+    # pprint(docs[0].keywords[0].docs)
 
-    kw = Keyword.get('algorithms')
-    print kw
-    print kw.docs
-    print kw.fb(session)
-    print kw.fb_from_docs(session)
+    # kw = Keyword.get('algorithms')
+    # print kw
+    # print kw.docs
+    # print kw.fb(session)
+    # print kw.fb_from_docs(session)
+    pass
     
 
     
