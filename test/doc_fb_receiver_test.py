@@ -21,7 +21,7 @@ class DocumentFeedbackTest(unittest.TestCase):
         #session
         self.session = get_session()
 
-    def test_rec__from_doc(self):
+    def test_rec_from_doc(self):
         """
         getter/setting for receiving feedback from document
         """
@@ -35,6 +35,9 @@ class DocumentFeedbackTest(unittest.TestCase):
 
         #is not the right document
         self.assertRaises(AssertionError, doc.rec_fb_from_doc, Document.get(2), 1, self.session) 
+
+        #test the weighted sum
+        self.assertEqual(.5 * .7, doc.fb_weighted_sum(self.session))
         
     def test_rec_fb_from_dockw(self):
         """
@@ -53,6 +56,10 @@ class DocumentFeedbackTest(unittest.TestCase):
         #python is not a keyword for document#1, error should be raised
         self.assertRaises(AssertionError, doc.rec_fb_from_dockw, doc, Keyword.get("python"), 1, self.session)
 
+        #test the weighted sum
+        weights = [0.62981539329519109, 0.45460437826405437, 0.62981539329519109]                
+        self.assertEqual((weights[0] * 1 + weights[1] * .5) / sum(weights), doc.fb_weighted_sum(self.session))
+
     def test_rec_fb_from_kw(self):
         """
         getter/setting for receiving feedback from keyword
@@ -68,12 +75,15 @@ class DocumentFeedbackTest(unittest.TestCase):
         self.assertRaises(AssertionError, doc.rec_fb_from_kw, Keyword.get("python"), 1, self.session)
                 
 
-    def test_fb_weighted_sum(self):
+        #test the weighted sum
+        weights = [0.62981539329519109, 0.45460437826405437, 0.62981539329519109]                
+        self.assertEqual((weights[0] * 1 + weights[1] * .5) / sum(weights), doc.fb_weighted_sum(self.session))
+
+    def test_all_together(self):
         """
-        test if the weighted sum is correct
+        All three sources of feedbacks are involved
         """
         doc = Document.get(1)
-
         
         doc.rec_fb_from_dockw(Keyword.get("redis"), doc, 1, self.session)
         doc.rec_fb_from_kw(Keyword.get("database"), .5, self.session)
@@ -87,8 +97,8 @@ class DocumentFeedbackTest(unittest.TestCase):
                    Keyword.get("a"): 0.62981539329519109
         }
         
-        self.assertAlmostEqual(.7 * .5 + .3 * (weights[redis] * 1 + weights[db] * .5) / sum(weights.values()),
-                         doc.fb_weighted_sum(self.session))
+        self.assertAlmostEqual(.5 * .7 + .3 * (weights[redis] * 1 + weights[db] * .5) / sum(weights.values()),
+                               doc.fb_weighted_sum(self.session))
         
     def test_loop_done(self):
         """

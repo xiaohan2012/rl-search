@@ -219,26 +219,24 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
     @property
     def kw_feedbacks(self):
         """keyword feedback"""
-        res = self.redis.hgetall('session:%s:kw_feedbacks' %self.session_id)
-        if not res:
-            return {}
-        return res
+        return dict([(Keyword.get(_id), fb)
+                     for _id, fb in self.get("kw_feedbacks", {}).items()])
+            
 
     @property
     def doc_feedbacks(self):
         """document feedback"""
-        res = self.redis.hgetall('session:%s:doc_feedbacks' %self.session_id)
-        if not res:
-            return {}
-        return res
+        return dict([(Document.get(_id), fb)
+                     for _id, fb in self.get("doc_feedbacks", {}).items()])
+
 
     def update_kw_feedback(self, kw, fb):
         """update keyword feedback"""
-        self.redis.hmset('session:%s:kw_feedbacks' %self.session_id, {kw.id, fb})
+        self.hmset("kw_feedbacks", {kw.id: fb})
 
-    def update_doc_feedback(self, kw, fb):
+    def update_doc_feedback(self, doc, fb):
         """update document feedback"""
-        self.redis.hmset('session:%s:doc_feedbacks' %self.session_id, {doc.id, fb})
+        self.hmset("doc_feedbacks", {doc.id: fb})
 
 
     ####################################
@@ -246,36 +244,28 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
     #to track the docs and kws whose feedback
     #shall be updated
     ####################################
-    def add_affected_docs(self, docs):
-        doc_ids = [doc.id for doc in docs]
-        
-        assert type(doc_ids[0]) is IntType, "doc_id is not an integer but %r" %doc_ids[0]
-        
-        self.redis.sadd('session:%s:affected_docs' %self.session_id, *doc_ids)
-
-    def add_affected_kws(self, kws):
-        kw_ids = [kw.id for kw in kws]
-        
-        assert type(kw_ids[0]) is StringType, "kw_id is not an string but %r" %kw_ids[0]
-        
-        self.redis.sadd('session:%s:affected_kws' %self.session_id, *kw_ids)
-        
-    def clean_affected_objects(self):
-        self.redis.delete('session:%s:affected_kws' %self.session_id)
-        self.redis.delete('session:%s:affected_docs' %self.session_id)
-        
-        assert self.affected_docs is None
-        assert self.affected_kws is None
-        
     @property
     def affected_docs(self):
-        return [Document.get(_id) 
-                for _id in  self.redis.get('session:%s:affected_docs' %self.session_id)]
-        
+        return [Document.get(doc_id) 
+                for doc_id in self.get("affected_docs", set())]
+
     @property
     def affected_kws(self):
-        return [Keyword.get(_id) 
-                for _id in  self.redis.get('session:%s:affected_kws' %self.session_id)]
+        return [Keyword.get(kw_id)
+                for kw_id in self.get("affected_kws", set())]
+        
+    def add_affected_docs(self, *docs):
+        doc_ids = [doc.id for doc in docs]
+        self.sadd("affected_docs", *doc_ids)
+
+    def add_affected_kws(self, *kws):
+        kw_ids = [kw.id for kw in kws]
+        self.sadd("affected_kws", *kw_ids)
+        
+    def clean_affected_objects(self):
+        self.delete("affected_kws")
+        self.delete("affected_docs")
+                
 
     ########################
     #
@@ -291,40 +281,43 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
     def add_doc_recom_list(self, docs):
         doc_ids = [doc.id for doc in docs]
         
-        assert type(doc_ids[0]) is IntType, "doc_id is not an integer but %r" %doc_ids[0]
+        prev_doc_ids = self.get("recommended_docs", []) #list of list of integers
+        prev_doc_ids.append(doc_ids)
         
-        self.redis.rpush('session:%s:recommended_docs' %self.session_id, pickle.dumps(doc_ids))
+        self.set("recommended_docs", prev_doc_ids)
     
     def add_kw_recom_list(self, kws):
         kw_ids = [kw.id for kw in kws]
         
-        assert type(kw_ids[0]) is StringType, "kw_id is not an string but %r" %kw_ids[0]
+        prev_kw_ids = self.get("recommended_kws", []) #list of list of integers
+        prev_kw_ids.append(kw_ids)
         
-        self.redis.rpush('session:%s:recommended_kws' %self.session_id, pickle.dumps(kw_ids))
+        self.set("recommended_kws", prev_kw_ids)
 
     @property
     def recom_docs(self):
-        return [Document.get(_id) 
-                for _id in  self.redis.get('session:%s:recommended_docs' %self.session_id)]
+        return [[Document.get(_id)
+                 for _id in id_list]
+                for id_list in  self.get("recommended_docs")]
         
     @property
     def recom_kws(self):
-        return [Keyword.get(_id) 
-                for _id in  self.redis.get('session:%s:recommended_kws' %self.session_id)]
-        
+        return [[Keyword.get(_id)
+                 for _id in id_list]
+                for id_list in  self.get("recommended_kws")]
+    
     @property
     def last_recom_docs(self):
-        list_of_pickle = self.redis.get('session:%s:recommended_docs' %self.session_id)
-        return [Document.get(_id) 
-                for _id in pickle.loads(last_recom_docs[-1])]
+        """
+        the most recent recommended documents 
+        """
+        return self.recom_docs[-1]
 
     #############################
     #generic wrapper functions
     #############################
     
     def set(self, key, value):
-        assert type(key) is StringType, "key must be string"
-
         self.redis.set('session:%s:%s' %(self.session_id, key),  pickle.dumps(value))
 
     def get(self, key, default=None):
@@ -339,7 +332,6 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
         key: string
         value: dict
         """
-        assert type(key) is StringType, "key must be string, but is %r" %key
         assert type(value) is DictType, "value must be dict, but is %r" %value
         
         d = self.get(key, {})
@@ -367,6 +359,27 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
         assert type(data) is DictType, "data must be dict, but is %r" %data
         return data
 
+    def sadd(self, key, *values):
+        """
+        add values to set specified by key
+        """
+        s = self.get(key, set())
+
+        assert isinstance(s, set), "`d` must be set, but is %r" %d
+        
+        s |= set(values)
+        
+        self.set(key,  s)
+
+    def sget(self, key):
+        """
+        get the set specified by key
+        """
+        
+        data = self.get(key, set())
+        assert isinstance(data, set) , "data must be set, but is %r" %data
+        return data
+        
     def delete(self, key):
         self.redis.delete('session:%s:%s' %(self.session_id, key))
 

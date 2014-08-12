@@ -97,14 +97,19 @@ class KeywordFeedbackReceiver(object):
         """
         Get the feedback received for the **current** loop
         
-        Note: this feedback value is not the same as the feedback received along the way
+        Note: 
+        1. this feedback value is not the same as the feedback received along the way
+        2. if there are no feedbacks from the keyword itself, then alpha value is set to 0
         """
                 
         fb_from_doc_sum = sum([self._doc_weight[doc] * fb
                                for doc, fb in self.fb_from_doc(session).items()])
         
-        return self.__class__.alpha * self.fb_from_kw(session) + \
-            (1 - self.__class__.alpha) * fb_from_doc_sum / sum(self._doc_weight.values())
+        if self.fb_from_kw(session) == 0: #no feedback from keyword itself
+            return fb_from_doc_sum / sum(self._doc_weight.values())
+        else:
+            return self.__class__.alpha * self.fb_from_kw(session) + \
+                (1 - self.__class__.alpha) * fb_from_doc_sum / sum(self._doc_weight.values())
 
     ############################
     # This step shall be done 
@@ -132,8 +137,9 @@ class DocumentFeedbackReceiver(object):
     
     #########################
     # weighting parameter for fb from kw and doc
+    # default to 0, giving no weight to fb from doc
     #########################
-    alpha = 0.5
+    alpha = 0.7
 
     def __init__(self, *args, **kwargs):
         super(DocumentFeedbackReceiver, self).__init__(*args, **kwargs)
@@ -201,13 +207,17 @@ class DocumentFeedbackReceiver(object):
         """
         Get the feedback received for the **current** loop
         
-        Note: this feedback value is not the same as the feedback received along the way
+        Note: 
+        1. this feedback value is not the same as the feedback received along the way
+        2. if there are no feedbacks from the document itself, then alpha value is set to 0
         """
         fb_from_kw_sum = sum([self._kw_weight[kw] * fb
                               for kw, fb in self.fb_from_kw(session).items()])
-        
-        return self.__class__.alpha * self.fb_from_doc(session) + \
-            (1 - self.__class__.alpha) * fb_from_kw_sum / sum(self._kw_weight.values())
+        if self.fb_from_doc(session) == 0:
+            return fb_from_kw_sum / sum(self._kw_weight.values())
+        else:
+            return self.__class__.alpha * self.fb_from_doc(session) + \
+                (1 - self.__class__.alpha) * fb_from_kw_sum / sum(self._kw_weight.values())
 
     ############################
     # This step shall be done 

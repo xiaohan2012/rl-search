@@ -20,7 +20,7 @@ def get_db_conn():
     db = 'scinet3'
     return torndb.Connection("%s:%s" % ('ugluk', 3306), db, 'hxiao', 'xh24206688')
 
-def config_doc_kw_model(doc_alpha = .7, kw_alpha = .7):
+def config_doc_kw_model(doc_alpha = 0.7, kw_alpha = .7):
     conn = get_db_conn()
     table = 'test'    
     print conn

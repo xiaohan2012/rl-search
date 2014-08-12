@@ -62,9 +62,25 @@ class KeywordFeedbackTest(unittest.TestCase):
         #is not the right keyword
         self.assertRaises(AssertionError, kw.rec_fb_from_kw, Keyword.get("the"), 1, self.session)
 
-    def test_fb_weighted_sum(self):
+    def test_fb_weighted_sum_dockw_only(self):
         """
         test if the weighted sum is correct
+        
+        only feedback from dockw/doc
+        """
+        kw = Keyword.get("redis")
+        
+        kw.rec_fb_from_dockw(kw, Document.get(1), 1, self.session)
+        kw.rec_fb_from_doc(Document.get(2), .5, self.session)
+
+        self.assertEqual(1 / 3. + 1 / 6.,
+                         kw.fb_weighted_sum(self.session))
+
+    def test_fb_weighted_sum_mixed_source(self):
+        """
+        test if the weighted sum is correct
+
+        feedback include all three sources
         """
         kw = Keyword.get("redis")
         
@@ -74,8 +90,7 @@ class KeywordFeedbackTest(unittest.TestCase):
         kw.rec_fb_from_kw(kw, .5, self.session)
 
         self.assertEqual(.3 * (1 / 3. + 1 / 6.) + .7 * .5,
-                         kw.fb_weighted_sum(self.session))
-        
+                         kw.fb_weighted_sum(self.session))        
 
     def test_loop_done(self):
         """
