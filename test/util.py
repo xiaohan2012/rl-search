@@ -7,10 +7,10 @@
 # 5. 
 ########################################
 
-__all__ = ["get_db_conn", "config_doc_kw_model", "get_session"]
+__all__ = ["get_db_conn", "config_doc_kw_model", "get_session", "NumericTestCase"]
 
 
-import torndb, redis
+import torndb, redis, unittest
 
 from scinet3.data import load_fmim
 from scinet3.model import config_model
@@ -23,10 +23,12 @@ def get_db_conn():
 def config_doc_kw_model(doc_alpha = 0.7, kw_alpha = .7):
     conn = get_db_conn()
     table = 'test'    
-    print conn
+
     fmim_dict = load_fmim(conn, table, keyword_field_name = 'keywords').__dict__
     
     config_model(conn, table, fmim_dict, doc_alpha, kw_alpha)
+
+    return conn, fmim_dict
 
 def get_session():
     
@@ -36,7 +38,8 @@ def get_session():
     return RedisRecommendationSessionHandler.get_session(redis_conn)
     
 
-    
-
-    
-    
+class NumericTestCase(unittest.TestCase):
+    def assertArrayAlmostEqual(self, arr1, arr2):
+        for x,y in zip(arr1, arr2):
+            self.assertAlmostEqual(x,y)
+        

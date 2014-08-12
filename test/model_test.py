@@ -33,7 +33,8 @@ class ModelTest(unittest.TestCase):
         #that is as far as we can test
         #no numerical testing
         self.assertTrue(type(doc._kw_weight) is DictType)
-        
+
+                
     def test_keyword(self):
         """
         whether id, documents are correct
@@ -47,3 +48,14 @@ class ModelTest(unittest.TestCase):
         #that is as far as we can test
         #no numerical testing
         self.assertTrue(type(kw._doc_weight) is DictType)
+
+
+    def test_get_many(self):
+        doc_ids = [1,2]
+        kw_ids = ["a", "the"]
+        
+        self.assertEqual([Document.get(1), Document.get(2)], 
+                         Document.get_many(doc_ids))
+
+        self.assertEqual([Keyword.get("a"), Keyword.get("the")], 
+                         Keyword.get_many(kw_ids))

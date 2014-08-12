@@ -10,6 +10,7 @@ config_doc_kw_model()
 
 from scinet3.model import (Document, Keyword)
 from scinet3.fb_propagator import OnePassPropagator as ppgt
+from scinet3.fb_updater import OverrideUpdater as upd
 
 class OnePassPropagatorTest(unittest.TestCase):
     def setUp(self):
@@ -18,7 +19,8 @@ class OnePassPropagatorTest(unittest.TestCase):
     def test_fb_from_doc(self):
         doc = Document.get(1)
         ppgt.fb_from_doc(doc, 0.5, self.session)        
-        ppgt.done(self.session)
+        
+        upd.update(self.session)
         
         # assertions
         self.assertAlmostEqual(.5 * .7, doc.fb(self.session))
@@ -34,7 +36,7 @@ class OnePassPropagatorTest(unittest.TestCase):
         self.session.add_doc_recom_list(recom_docs)
         
         ppgt.fb_from_kw(kw, 0.5, self.session)        
-        ppgt.done(self.session)
+        upd.update(self.session)
         
         # assertions
         self.assertAlmostEqual(.5 * .7, kw.fb(self.session))
@@ -48,7 +50,7 @@ class OnePassPropagatorTest(unittest.TestCase):
         doc = Document.get(1)
         
         ppgt.fb_from_dockw(kw, doc, .5, self.session)
-        ppgt.done(self.session)
+        upd.update(self.session)
         
         self.assertAlmostEqual(0.183701573217, doc.fb(self.session))
         self.assertAlmostEqual(0.166666666667, kw.fb(self.session))
@@ -66,7 +68,7 @@ class OnePassPropagatorTest(unittest.TestCase):
         ppgt.fb_from_dockw(kw, doc, .5, self.session)
         ppgt.fb_from_kw(kw, 0.5, self.session)
 
-        ppgt.done(self.session)
+        upd.update(self.session)
 
         self.assertAlmostEqual(0.164710003739, Keyword.get("a").fb(self.session))
         self.assertAlmostEqual(0.166666666667 * .3 + .5 * .7, Keyword.get("redis").fb(self.session))

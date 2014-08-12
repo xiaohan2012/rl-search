@@ -87,24 +87,6 @@ class OnePassPropagator(FeedbackPropagator):
         session.add_affected_kws(kw)
         session.add_affected_docs(doc)
 
-    @classmethod
-    def done(cls, session):
-        """
-        when propagation is done
-        session: Session
-        """        
-        for kw in session.affected_kws:
-            session.update_kw_feedback(kw, kw.fb_weighted_sum(session))
-            kw.loop_done(session)
-            
-        for doc in session.affected_docs:
-            session.update_doc_feedback(doc, doc.fb_weighted_sum(session))
-            doc.loop_done(session)
-        
-        session.clean_affected_objects()
-        
-        
-        
 class IterativePropagator(FeedbackPropagator):
     """
     Iteratively propagates the feedback

@@ -18,10 +18,14 @@ from fb_receiver import KeywordFeedbackReceiver, DocumentFeedbackReceiver
 
 class Document(DocumentFeedbackReceiver, dict):
     __all_docs_by_id = {}
+    
     all_docs = []
     db_conn = None
     table = None
-            
+    
+    #whether all documents are loaded or not
+    all_docs_loaded = False
+    
     @classmethod
     def config(cls, conn, table, **kwargs):
         """
@@ -71,6 +75,8 @@ class Document(DocumentFeedbackReceiver, dict):
             cls.__all_docs_by_id[doc['id']] = doc
             cls.all_docs.append(doc)
 
+        cls.all_docs_loaded = True
+
         return cls.__all_docs_by_id.values()
         
     @classmethod
@@ -85,6 +91,14 @@ class Document(DocumentFeedbackReceiver, dict):
             cls.__all_docs_by_id[doc_id] = doc
             return doc
 
+    @classmethod
+    def get_many(cls, ids):
+        """
+        get multiple documents by id
+        """
+        return [cls.get(_id)
+                for _id in ids]
+        
     @property
     def _kw_weight(self):
         """
@@ -116,7 +130,7 @@ class Document(DocumentFeedbackReceiver, dict):
         """
         Feedback received along the way
         """
-        return session.doc_feedbacks.get(self.id, 0)
+        return session.doc_feedbacks.get(self, 0)
         
     def fb_from_kws(self, session):
         """
@@ -140,9 +154,9 @@ class Document(DocumentFeedbackReceiver, dict):
         super(Document, self).__init__(*args, **kwargs)
     
     def __repr__(self):
-        return '%d. "%s" (%s)' %(self['id'], self['title'], 
-                             ', '.join(["%d, %s" %(ind+1, repr(kw)) 
-                                        for ind, kw in enumerate(self['keywords'])]))
+        return '%d: (%s)' %(self['id'], 
+                            ', '.join(["%s" %(kw.id) 
+                                       for kw in self['keywords']]))
 
     def __hash__(self):
         return hash(self.id)
@@ -178,6 +192,14 @@ class Keyword(KeywordFeedbackReceiver, dict):
 
             return kw
 
+    @classmethod
+    def get_many(cls, ids):
+        """
+        get multiple keywords by id
+        """
+        return [cls.get(_id)
+                for _id in ids]
+
     @property
     def id(self):    
         return self['id']
@@ -208,6 +230,12 @@ class Keyword(KeywordFeedbackReceiver, dict):
         attrs = [a for a in self.keys() if not a.startswith('_')]
         return dict([(a, self[a]) for a in attrs])
 
+    def fb(self, session):
+        """
+        Feedback received along the way
+        """
+        return session.kw_feedbacks.get(self, 0)
+        
     def add_assoc_doc(self, doc):
         self.docs.append(doc)
         
@@ -230,7 +258,12 @@ class Keyword(KeywordFeedbackReceiver, dict):
         return (self['id']) == (other['id'])
 
 def config_model(conn, table, matrices_and_indices, doc_alpha, kw_alpha):
-    #config the database and session stuff
+    """
+    config
+    1. the database connetion
+    2. session 
+    3. weight(\alpha) in feedback propagation 
+    """
     Document.config(conn, table, **matrices_and_indices)
     Document.set_alpha(doc_alpha)
     

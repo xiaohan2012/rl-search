@@ -37,25 +37,3 @@ def linrel(y_t, D_t, D, mu, c):
         
     scores = explt_scores + explr_scores
     return scores, explt_scores, explr_scores
-
-if __name__ == "__main__":
-    D = csr_matrix(np.array([[1, 0, 0, 0, 1, 1],
-                             [0, 1, 1, 0, 0, 0], 
-                             [1, 0, 0, 1, 0, 0],#we favor this one
-                             [1, 0, 0, 0, 1, 1],
-                             [1, 1, 0, 1, 0, 0],#this is good
-                             [0, 1, 1, 0, 0, 0],
-                             [1, 1, 1, 0, 0, 0],#this is surprise
-                         ]))
-    D_t = D[0:3,:]
-    mu = 1
-    c = .2
-    y_t = csr_matrix([[.3], [.3], [.7]])
-
-    scores, explr_scores, explt_scores = linrel(y_t, D_t, D, mu, c)
-    
-    print scores
-    print '='
-    print explr_scores
-    print '+'
-    print explt_scores
