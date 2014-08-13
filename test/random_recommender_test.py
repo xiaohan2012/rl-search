@@ -14,12 +14,12 @@ config_doc_kw_model()
 
 class RadnomRecommenderTest(unittest.TestCase):
     def setUp(self):
-        self.r = RandomRecommender()
+        self.r = RandomRecommender(2,2,True)
         random.seed(123456)
         
     def test_recom_doc(self):
         docs = self.r.recommend_documents(4)
-        self.assertEqual(Document.get_many([9,8,1,2]), 
+        self.assertEqual(Document.get_many([9,8,2,1]), 
                          docs)
 
     def test_recom_kw_assoc(self):
@@ -38,13 +38,21 @@ class RadnomRecommenderTest(unittest.TestCase):
         
         self.assertEqual(Keyword.get_many(["a", "redis", "the", "web"]), 
                          kws)
-        self.assertEqual(Document.get_many([9,8,1,2]), 
+        self.assertEqual(Document.get_many([9,8,2,1]), 
                          docs)
 
     def test_together_assoc(self):
         """keywords are associated with docs"""
         docs, kws = self.r.recommend(4,4,True)
-        self.assertEqual(Document.get_many([9,8,1,2]), 
+        self.assertEqual(Document.get_many([9,8,2,1]), 
                          docs)
         self.assertEqual(Keyword.get_many(["python", "the", "database", "redis"]), 
                          kws)
+
+    def test_together_using_default_params(self):
+        docs, kws = self.r.recommend()
+        self.assertEqual(Document.get_many([9,8]), 
+                         docs)
+        self.assertEqual(Keyword.get_many(["python", "database"]), 
+                         kws)
+        

@@ -1,3 +1,7 @@
+#########################
+# Utility filter/filter-making functions
+#########################
+
 from functools import partial
 
 def make_threshold_filter(value_getter, threshold, above = True):
@@ -18,12 +22,12 @@ def make_threshold_filter(value_getter, threshold, above = True):
 
     return func
 
-make_fb_filter = partial(make_threshold_filter, 
-                         value_getter = (lambda o: getattr(o, 'fb')))
-make_fb_from_kws_filter = partial(make_threshold_filter, 
-                                  value_getter = (lambda o: getattr(o, 'fb_from_kws')))
-make_fb_from_docs_filter = partial(make_threshold_filter, 
-                                  value_getter = (lambda o: getattr(o, 'fb_from_docs')))
+# make_fb_filter = partial(make_threshold_filter, 
+#                          value_getter = (lambda o: getattr(o, 'fb')))
+# make_fb_from_kws_filter = partial(make_threshold_filter, 
+#                                   value_getter = (lambda o: getattr(o, 'fb_from_kws')))
+# make_fb_from_docs_filter = partial(make_threshold_filter, 
+#                                   value_getter = (lambda o: getattr(o, 'fb_from_docs')))
 
 def test():
     from collections import namedtuple

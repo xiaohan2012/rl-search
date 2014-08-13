@@ -16,6 +16,9 @@ class KeywordFeedbackTest(unittest.TestCase):
         #session
         self.session = get_session()
 
+        #add recommendation list
+        self.session.add_doc_recom_list(Document.get_many([1,2]))
+        
     def test_rec_fb_from_doc(self):
         """
         getter/setting for receiving feedback from document
@@ -39,8 +42,6 @@ class KeywordFeedbackTest(unittest.TestCase):
         kw.rec_fb_from_dockw(kw, Document.get(2), .5, self.session)
         kw.rec_fb_from_dockw(kw, Document.get(1), 1, self.session)
         
-        print kw.fb_from_doc(self.session)
-
         self.assertEqual(kw.fb_from_doc(self.session), {Document.get(1): 1, Document.get(2): .5})
 
         #is not the right keyword
@@ -73,7 +74,7 @@ class KeywordFeedbackTest(unittest.TestCase):
         kw.rec_fb_from_dockw(kw, Document.get(1), 1, self.session)
         kw.rec_fb_from_doc(Document.get(2), .5, self.session)
 
-        self.assertEqual(1 / 3. + 1 / 6.,
+        self.assertEqual((1 + .5) / 2,
                          kw.fb_weighted_sum(self.session))
 
     def test_fb_weighted_sum_mixed_source(self):
@@ -89,7 +90,7 @@ class KeywordFeedbackTest(unittest.TestCase):
 
         kw.rec_fb_from_kw(kw, .5, self.session)
 
-        self.assertEqual(.3 * (1 / 3. + 1 / 6.) + .7 * .5,
+        self.assertEqual(.3 * (1 / 2. + 1 / 4.) + .7 * .5,
                          kw.fb_weighted_sum(self.session))        
 
     def test_loop_done(self):

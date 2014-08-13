@@ -13,6 +13,8 @@ from pprint import pprint
 from cPickle import load
 from copy import copy
 
+from scipy import linalg, mat, dot
+
 from data import FeatureMatrixAndIndexMapping as fmim
 from fb_receiver import KeywordFeedbackReceiver, DocumentFeedbackReceiver
 
@@ -36,7 +38,7 @@ class Document(DocumentFeedbackReceiver, dict):
 
         for key, value in kwargs.items():
             setattr(cls, key, value)
-            
+    
     @classmethod
     def __ensure_configured(cls):
         assert cls.db_conn is not None, "database connection should not None"
@@ -56,7 +58,9 @@ class Document(DocumentFeedbackReceiver, dict):
             doc['keywords'] = kws
 
         #mutual binding for keywords
-        for kw in doc['keywords']: kw.add_assoc_doc(doc)
+        for kw in doc['keywords']: 
+            if doc not in kw.docs:
+                kw.add_assoc_doc(doc)
 
         #set dict keys as attributes
         for key, value in doc.items():
@@ -98,7 +102,24 @@ class Document(DocumentFeedbackReceiver, dict):
         """
         return [cls.get(_id)
                 for _id in ids]
+
+    @property
+    def vec(self):
+        """ feature vector of the document """
+        if not hasattr(self, "_vec"):
+            cls = self.__class__
+            self._vec = cls.doc2kw_m[cls.doc_ind[self.id],:]
+        return self._vec
+
+    def similarity_to(self, other, metric="cosine"):
+        assert type(other) is Document, "`other` should be Document, but is %r" %(other)
         
+        vec1, vec2 = mat(self.vec.todense()), mat(other.vec.todense())
+        if metric == "cosine":
+            return (dot(vec1,vec2.T)/linalg.norm(vec1)/linalg.norm(vec2)).tolist()[0][0]
+        else:
+            raise NotImplementedError("Only cosine distance metric is implemented for now")
+    
     @property
     def _kw_weight(self):
         """
@@ -230,6 +251,23 @@ class Keyword(KeywordFeedbackReceiver, dict):
         attrs = [a for a in self.keys() if not a.startswith('_')]
         return dict([(a, self[a]) for a in attrs])
 
+    @property
+    def vec(self):
+        """ feature vector of the keyword """
+        if not hasattr(self, "_vec"):
+            cls = self.__class__
+            self._vec = cls.kw2doc_m[cls.kw_ind[self.id],:]
+        return self._vec
+
+    def similarity_to(self, other, metric="cosine"):
+        assert type(other) is Keyword, "`other` should be Keyword, but is %r" %(other)
+        
+        vec1, vec2 = mat(self.vec.todense()), mat(other.vec.todense())
+        if metric == "cosine":
+            return (dot(vec1,vec2.T)/linalg.norm(vec1)/linalg.norm(vec2)).tolist()[0][0]
+        else:
+            raise NotImplementedError("Only cosine distance metric is implemented for now")
+
     def fb(self, session):
         """
         Feedback received along the way
@@ -249,7 +287,7 @@ class Keyword(KeywordFeedbackReceiver, dict):
         super(Keyword, self).__init__()
         
     def __repr__(self):
-        return "\"%s: %s\"" %(self.__class__.__name__, self['id'])
+        return self["id"]
 
     def __hash__(self):
         return hash(self['id'])
@@ -264,6 +302,7 @@ def config_model(conn, table, matrices_and_indices, doc_alpha, kw_alpha):
     2. session 
     3. weight(\alpha) in feedback propagation 
     """
+    print "configuring model..."
     Document.config(conn, table, **matrices_and_indices)
     Document.set_alpha(doc_alpha)
     

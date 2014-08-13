@@ -100,16 +100,22 @@ class KeywordFeedbackReceiver(object):
         Note: 
         1. this feedback value is not the same as the feedback received along the way
         2. if there are no feedbacks from the keyword itself, then alpha value is set to 0
+        3. Only the weights of documents being recommended most recently are considered for weighting
         """
-                
+        considered_docs = [doc for doc in self._doc_weight.keys() 
+                           if doc in session.last_recom_docs] #those appeared in last_recom_docs
+
+        doc_weight_sum = sum([self._doc_weight[doc] 
+                              for doc in considered_docs])
+        
         fb_from_doc_sum = sum([self._doc_weight[doc] * fb
                                for doc, fb in self.fb_from_doc(session).items()])
         
         if self.fb_from_kw(session) == 0: #no feedback from keyword itself
-            return fb_from_doc_sum / sum(self._doc_weight.values())
+            return fb_from_doc_sum / doc_weight_sum
         else:
             return self.__class__.alpha * self.fb_from_kw(session) + \
-                (1 - self.__class__.alpha) * fb_from_doc_sum / sum(self._doc_weight.values())
+                (1 - self.__class__.alpha) * fb_from_doc_sum / doc_weight_sum
 
     ############################
     # This step shall be done 

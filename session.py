@@ -298,20 +298,23 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
     def recom_docs(self):
         return [[Document.get(_id)
                  for _id in id_list]
-                for id_list in  self.get("recommended_docs")]
+                for id_list in  self.get("recommended_docs", [])]
         
     @property
     def recom_kws(self):
         return [[Keyword.get(_id)
                  for _id in id_list]
-                for id_list in  self.get("recommended_kws")]
+                for id_list in  self.get("recommended_kws", [])]
     
     @property
     def last_recom_docs(self):
         """
         the most recent recommended documents 
         """
-        return self.recom_docs[-1]
+        try:
+            return self.recom_docs[-1]
+        except IndexError:
+            raise Exception("No recent recommended documents available.")
 
     #############################
     #generic wrapper functions

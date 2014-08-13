@@ -137,8 +137,8 @@ class RecommendationTrackingTest(unittest.TestCase):
         """
         as well as last_recom_docs
         """
-        iter1 = [Document.get(_id) for _id in [1, 2, 3]]
-        iter2 = [Document.get(_id) for _id in [2, 3, 4]]
+        iter1 = Document.get_many([1, 2, 3])
+        iter2 = Document.get_many([2, 3, 4])
         
         self.session.add_doc_recom_list(iter1)        
         self.assertEqual([iter1], self.session.recom_docs)
@@ -148,4 +148,3 @@ class RecommendationTrackingTest(unittest.TestCase):
 
         self.assertEqual(iter2, self.session.last_recom_docs)
         
-

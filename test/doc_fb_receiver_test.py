@@ -19,7 +19,7 @@ docs = Document.load_all_from_db()
 class DocumentFeedbackTest(unittest.TestCase):
     def setUp(self):
         #session
-        self.session = get_session()
+        self.session = get_session()                
 
     def test_rec_from_doc(self):
         """

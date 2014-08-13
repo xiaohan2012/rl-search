@@ -11,7 +11,10 @@ _, fmim = config_doc_kw_model()
 
 class LinRelUtilityTest(NumericTestCase):
     def setUp(self):
-        self.r = LinRelRecommender(get_session(), **fmim)
+        self.r = LinRelRecommender(4, 4, 
+                                   1., .5, 1., .5,
+                                   None, None,
+                                   **fmim)
 
     def test_associated_keywords_from_documents(self):
         kws = self.r.associated_keywords_from_docs(Document.get_many([1,2]))
@@ -73,48 +76,66 @@ class LinRelRecommenderWithoutFilterTest(NumericTestCase):
     No filter is used
     """
     def setUp(self):
-        self.r = LinRelRecommender(get_session(), **fmim)
+        self.r = LinRelRecommender(2, 2, 
+                                   1., .1, 1., .1,
+                                   None, None,
+                                   **fmim)
         
+        
+        
+        self.session = get_session()
+
         #giving the feedbacks
-        self.r._session.update_kw_feedback(Keyword.get("redis"), .7)
-        self.r._session.update_kw_feedback(Keyword.get("database"), .6)
+        self.session.update_kw_feedback(Keyword.get("redis"), .7)
+        self.session.update_kw_feedback(Keyword.get("database"), .6)
         
-        self.r._session.update_doc_feedback(Document.get(1), .7)
-        self.r._session.update_doc_feedback(Document.get(2), .7)
-        self.r._session.update_doc_feedback(Document.get(8), .7)
+        self.session.update_doc_feedback(Document.get(1), .7)
+        self.session.update_doc_feedback(Document.get(2), .7)
+        self.session.update_doc_feedback(Document.get(8), .7)
 
     def test_recommend_keywords(self):
-        kws = self.r.recommend_keywords(4, 1, .5)
-        print kws
+        kws = self.r.recommend_keywords(self.session, 4, 1, .5)
         self.assertEqual(Keyword.get_many(["redis", "database", "the", "mysql"]), 
                          kws)
 
     def test_recommend_documents(self):
-        docs = self.r.recommend_documents(4, 1, .5)
+        docs = self.r.recommend_documents(self.session, 4, 1, .5)
         self.assertEqual(Document.get_many([1,8,2,6]), 
                          docs)
 
     def test_recommend(self):
-        docs, kws = self.r.recommend(4, 4, 
+        docs, kws = self.r.recommend(self.session, 
+                                     4, 4, 
                                      1, .5,
                                      1., .5)
 
         self.assertEqual(Document.get_many([1,8,2,6]), docs)
         self.assertEqual(Keyword.get_many(["redis", "database", "the", "mysql", "a", "python"]), kws)
 
+    def test_recommend_using_default(self):
+        docs, kws = self.r.recommend(self.session)
+
+        self.assertEqual(Document.get_many([1,8]), docs)
+        self.assertEqual(Keyword.get_many(["redis", "database", "a", "python"]), kws)
+
 class LinRelRecommenderWithFilterTest(NumericTestCase):
     """
     Filters is used
     """
     def setUp(self):
-        self.r = LinRelRecommender(get_session(), **fmim)
+        self.r = LinRelRecommender(2, 2, 
+                                   1., .1, 1., .1,
+                                   None, None,
+                                   **fmim)
         
-        self.r._session.update_kw_feedback(Keyword.get("redis"), .7)
-        self.r._session.update_kw_feedback(Keyword.get("database"), .6)
+        self.session = get_session()
         
-        self.r._session.update_doc_feedback(Document.get(1), .7)
-        self.r._session.update_doc_feedback(Document.get(2), .7)
-        self.r._session.update_doc_feedback(Document.get(8), .7)
+        self.session.update_kw_feedback(Keyword.get("redis"), .7)
+        self.session.update_kw_feedback(Keyword.get("database"), .6)
+        
+        self.session.update_doc_feedback(Document.get(1), .7)
+        self.session.update_doc_feedback(Document.get(2), .7)
+        self.session.update_doc_feedback(Document.get(8), .7)
 
     ####################
     # Filters for testing purpose
@@ -138,15 +159,23 @@ class LinRelRecommenderWithFilterTest(NumericTestCase):
     # Testing begins
     #######################
     def test_recommend_keywords(self):
-        kws = self.r.recommend_keywords(8, 1, 0.5, filters = [self.my_kw_filter])
+        kws = self.r.recommend_keywords(self.session,
+                                        8, 1, 0.5, 
+                                        filters = [self.my_kw_filter])
+        print Keyword.get("python")
+        print Keyword.get("python").docs
         self.assertEqual(Keyword.get_many(["redis", "database", "python", "web"]), kws)
 
     def test_recommend_documents(self):
-        docs = self.r.recommend_documents(8, 1, 0.5, filters = [self.kw_count_filter, self.has_database_filter])
+        docs = self.r.recommend_documents(self.session,
+                                          8, 1, 0.5, 
+                                          filters = [self.kw_count_filter, self.has_database_filter])
+
         self.assertEqual(Document.get_many([1,2,6,9,7,3,4,5]), docs)
 
     def test_recommend(self):
-        docs, kws = self.r.recommend(4, 4, 
+        docs, kws = self.r.recommend(self.session,
+                                     4, 4, 
                                      1, .5,
                                      1., .5,
                                      kw_filters = [self.my_kw_filter],
@@ -155,3 +184,8 @@ class LinRelRecommenderWithFilterTest(NumericTestCase):
         self.assertEqual(Keyword.get_many(["redis", "database", "python", "web", "a", "the"]), kws)        
 
 
+    def test_recommend_using_default(self):
+        docs, kws = self.r.recommend(self.session)
+
+        self.assertEqual(Document.get_many([1,8]), docs)
+        self.assertEqual(Keyword.get_many(["redis", "database", "a", "python"]), kws)

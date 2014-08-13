@@ -3,6 +3,7 @@ import random
 import numpy as np
 from numpy import matrix
 from collections import OrderedDict
+from types import IntType, FloatType
 
 from scinet3.model import (Document, Keyword)
 from scinet3.rec_engine.base import Recommender
@@ -11,16 +12,6 @@ from scinet3.linrel import linrel
 random.seed(123456)
 
 class LinRelRecommender(Recommender): 
-    def __init__(self, session, *args, **kwargs):
-        """
-        session: the session object used to retrieve session data
-        args: the matrix and index mapping stuff
-        """
-
-        self._session = session
-        
-        super(LinRelRecommender, self).__init__(*args, **kwargs)
-        
     def generic_rank(self, K, fb, 
                      id2ind_map,ind2id_map,
                      mu, c):
@@ -127,7 +118,7 @@ class LinRelRecommender(Recommender):
         else:
             raise 
         
-    def recommend_keywords(self, top_n, mu, c, filters=None, sampler=None):
+    def recommend_keywords(self, session, top_n, mu, c, filters=None, sampler=None):
         """
         filters: a list of filtering function applied to the keywords before doing the LinRel computation, a keyword satisfying any of the filters will be considered candidate.
         
@@ -142,7 +133,7 @@ class LinRelRecommender(Recommender):
         filtered_kw_ids = [kw.id for kw in filtered_kws]
         
         kw2doc_submat, kw_ind_map, kw_ind_map_r = self._submatrix_and_indexing(filtered_kw_ids, self.kw2doc_m, self.kw_ind)
-        fbs = dict([(kw.id, kw.fb(self._session)) for kw in filtered_kws])
+        fbs = dict([(kw.id, kw.fb(session)) for kw in filtered_kws])
         
         if sampler:
             pass# do some sampling here
@@ -161,7 +152,7 @@ class LinRelRecommender(Recommender):
         
         return kws
         
-    def recommend_documents(self, top_n, mu, c, filters = None, sampler = None):
+    def recommend_documents(self, session, top_n, mu, c, filters = None, sampler = None):
         """
         return a list of document ids as well as the scores
         """
@@ -172,7 +163,7 @@ class LinRelRecommender(Recommender):
         else:
             filtered_docs = Document.all_docs
         filtered_doc_ids = [doc.id for doc in filtered_docs]
-        fbs = dict([(doc.id, doc.fb(self._session)) for doc in filtered_docs])
+        fbs = dict([(doc.id, doc.fb(session)) for doc in filtered_docs])
         
         doc2kw_submat, doc_ind_map, doc_ind_map_r = self._submatrix_and_indexing(filtered_doc_ids, self.doc2kw_m, self.doc_ind)
         
@@ -194,29 +185,74 @@ class LinRelRecommender(Recommender):
 
         return docs
         
-    def recommend(self, recom_kw_num, recom_doc_num, 
-                  linrel_kw_mu, linrel_kw_c, linrel_doc_mu, linrel_doc_c,
+    def recommend(self, session, 
+                  recom_kw_num = None, recom_doc_num = None, 
+                  linrel_kw_mu = None, linrel_kw_c = None, linrel_doc_mu = None, linrel_doc_c = None,
                   kw_filters = None, doc_filters = None):
         """
         Params:
-        recom_kw_num, recom_doc_num: integer, number of keywords/documents to be recommended
-        linrel_kw_mu, linrel_kw_c, linrel_doc_mu, linrel_doc_c: float, 
-            linrel parameters for keyword/document recommendation
+        session: Session, the session used
+        (optional) recom_kw_num, recom_doc_num: integer, number of keywords/documents to be recommended
+        (optional) linrel_kw_mu, linrel_kw_c, linrel_doc_mu, linrel_doc_c: float,
+                   linrel parameters for keyword/document recommendation
         
-        kw_filters,doc_filters: list of filters to be applied to keywords/documents
+        (optional) kw_filters,doc_filters: list of filters to be applied to keywords/documents recommendation
         
         Return:
         (list of Document, list of Keyword)
         """                
         
-        rec_kws = self.recommend_keywords(recom_kw_num, 
-                                          linrel_kw_mu, linrel_kw_c, 
-                                          filters = kw_filters)
+        rec_kws = self.recommend_keywords(session, recom_kw_num or self.recom_kw_num, 
+                                          linrel_kw_mu or self.linrel_kw_mu, linrel_kw_c or self.linrel_kw_c, 
+                                          filters = kw_filters or self.kw_filters)
             
-        rec_docs = self.recommend_documents(recom_doc_num, 
-                                            linrel_doc_mu, linrel_doc_c,
-                                            filters = doc_filters)
+        rec_docs = self.recommend_documents(session, recom_doc_num or self.recom_doc_num, 
+                                            linrel_doc_mu or self.linrel_doc_mu, linrel_doc_c or self.linrel_doc_c,
+                                            filters = doc_filters or self.doc_filters)
 
         assoc_kws = self.associated_keywords_from_docs(rec_docs, rec_kws)
         
         return rec_docs, rec_kws + assoc_kws            
+
+    def __init__(self, recom_kw_num, recom_doc_num,  #recommendation number
+                 linrel_kw_mu, linrel_kw_c, linrel_doc_mu, linrel_doc_c, #linrel parameters
+                 kw_filters, doc_filters, #filters
+                 *args, **kwargs):
+        """
+        Params:
+        recom_kw_num, recom_doc_num: integer, number of keywords/documents to be recommended
+        linrel_kw_mu, linrel_kw_c, linrel_doc_mu, linrel_doc_c: float, 
+            linrel parameters for keyword/document recommendation
+        kw_filters,doc_filters: list of filters to be applied to keywords/documents
+        
+        args: the matrix and index mapping stuff
+        """
+        
+                  
+        #type validation
+        for attr_name in ["recom_kw_num", "recom_doc_num"]:
+            attr = eval(attr_name)
+            assert type(attr) is IntType, "%s should be integer, but is %r" %(attr_name, attr)
+            
+        #assignment
+        self.recom_kw_num = recom_kw_num
+        self.recom_doc_num = recom_doc_num
+
+        #type validation
+        for attr_name in ["linrel_kw_mu", "linrel_kw_c", "linrel_doc_mu", "linrel_doc_c"]:
+            attr = eval(attr_name)
+            assert type(attr) is FloatType, "%s should be float, but is %r" %(attr_name, attr)
+            
+        #assignment
+        self.linrel_kw_mu = linrel_kw_mu
+        self.linrel_kw_c = linrel_kw_c
+
+        self.linrel_doc_mu = linrel_doc_mu
+        self.linrel_doc_c = linrel_doc_c
+
+        self.kw_filters = kw_filters
+        self.doc_filters = doc_filters
+        
+        super(LinRelRecommender, self).__init__(*args, **kwargs)
+        
+    

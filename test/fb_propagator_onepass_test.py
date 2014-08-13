@@ -16,6 +16,9 @@ class OnePassPropagatorTest(unittest.TestCase):
     def setUp(self):
         self.session = get_session()
         
+        #add recommendation list
+        self.session.add_doc_recom_list(Document.get_many([1,2]))
+        
     def test_fb_from_doc(self):
         doc = Document.get(1)
         ppgt.fb_from_doc(doc, 0.5, self.session)        
@@ -25,9 +28,9 @@ class OnePassPropagatorTest(unittest.TestCase):
         # assertions
         self.assertAlmostEqual(.5 * .7, doc.fb(self.session))
 
-        self.assertAlmostEqual(0.164710003739, Keyword.get("a").fb(self.session))
-        self.assertAlmostEqual(0.166666666667, Keyword.get("redis").fb(self.session))
-        self.assertAlmostEqual(0.0791425072939, Keyword.get("database").fb(self.session))
+        self.assertAlmostEqual(1/2., Keyword.get("a").fb(self.session))
+        self.assertAlmostEqual(1/4., Keyword.get("redis").fb(self.session))
+        self.assertAlmostEqual(1/4., Keyword.get("database").fb(self.session))
 
     def test_fb_from_kw(self):
         kw = Keyword.get("redis")
@@ -53,7 +56,7 @@ class OnePassPropagatorTest(unittest.TestCase):
         upd.update(self.session)
         
         self.assertAlmostEqual(0.183701573217, doc.fb(self.session))
-        self.assertAlmostEqual(0.166666666667, kw.fb(self.session))
+        self.assertAlmostEqual(1/4., kw.fb(self.session))
 
     def test_all_together(self):
         """
@@ -70,9 +73,9 @@ class OnePassPropagatorTest(unittest.TestCase):
 
         upd.update(self.session)
 
-        self.assertAlmostEqual(0.164710003739, Keyword.get("a").fb(self.session))
-        self.assertAlmostEqual(0.166666666667 * .3 + .5 * .7, Keyword.get("redis").fb(self.session))
-        self.assertAlmostEqual(0.0791425072939, Keyword.get("database").fb(self.session))
+        self.assertAlmostEqual(0.56689342264886755 * .5 / (0.56689342264886755 + 0.49704058656839417), Keyword.get("a").fb(self.session))
+        self.assertAlmostEqual(1 / 4. * .3 + .5 * .7, Keyword.get("redis").fb(self.session))
+        self.assertAlmostEqual(1 / 4., Keyword.get("database").fb(self.session))
         
         self.assertAlmostEqual(0.183701573217 * .3  + .7 * .5, recom_docs[0].fb(self.session))
         self.assertAlmostEqual(0.191506501383, recom_docs[1].fb(self.session))
