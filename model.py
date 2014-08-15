@@ -129,12 +129,17 @@ class Document(DocumentFeedbackReceiver, Model):
         Return:
         float
         """
-        assert type(other) is Document, "`other` should be Document, but is %r" %(other)
+        assert type(other) in (Document, scinet3.modelset.DocumentSet), "`other` should be either Document or DocumentSet, but is %r" %(other)
         
-        if metric == "cosine":
-            return cosine_similarity(self.vec, other.vec)
+        if isinstance(other, scinet3.modelset.DocumentSet):
+            return other.similarity_to(self, metric = metric)
         else:
-            raise NotImplementedError("Only cosine similarity metric is implemented for now")
+            if metric == "cosine":
+                sim_func = cosine_similarity
+            else:
+                raise NotImplementedError("Only cosine similarity metric is implemented for now")
+                
+            return sim_func(self.vec, other.vec)            
     
     @property
     def _kw_weight(self):
@@ -293,6 +298,7 @@ class Keyword(KeywordFeedbackReceiver, Model):
         float
         """
         assert type(other) in (Keyword, scinet3.modelset.KeywordSet), "`other` should be either Keyword or KeywordSet, but is %r" %other
+        
         if isinstance(other, scinet3.modelset.KeywordSet):
             return other.similarity_to(self, metric = metric)
         else:

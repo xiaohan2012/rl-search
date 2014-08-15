@@ -25,6 +25,18 @@ class ModelSet(set):
                                 for model in self]).sum(0) 
                     / len(self))
         
+    @property
+    def ids_str(self):
+        return ",".join(sorted([str(obj.id) for obj in self]))
+
+    #######################
+    # following two methods make ModelSet hashable
+    #######################
+    def __eq__(self, other):
+        return self.__class__ == other.__class__ and self.ids_str == other.ids_str
+        
+    def __hash__(self):
+        return hash(self.ids_str)
 
 class DocumentSet(ModelSet):
     @memoized
@@ -40,7 +52,7 @@ class DocumentSet(ModelSet):
         """
         assert type(other) in (scinet3.model.Document, DocumentSet), "`other` should be either Document or DocumentSet, but is %r" %other
         
-        if isinstance(other, Document):
+        if isinstance(other, scinet3.model.Document):
             other = DocumentSet([other])
 
         if metric == "cosine":
