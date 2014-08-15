@@ -13,7 +13,7 @@ from pprint import pprint
 from cPickle import load
 from copy import copy
 
-import scinet3.modelset
+import scinet3.modellist
 
 from scinet3.decorators import memoized
 from scinet3.data import FeatureMatrixAndIndexMapping as fmim
@@ -105,7 +105,7 @@ class Document(DocumentFeedbackReceiver, Model):
         """
         get multiple documents by id
         """
-        return scinet3.modelset.DocumentSet([cls.get(_id)
+        return scinet3.modellist.DocumentList([cls.get(_id)
                                              for _id in ids])
 
     @property
@@ -129,9 +129,9 @@ class Document(DocumentFeedbackReceiver, Model):
         Return:
         float
         """
-        assert type(other) in (Document, scinet3.modelset.DocumentSet), "`other` should be either Document or DocumentSet, but is %r" %(other)
+        assert type(other) in (Document, scinet3.modellist.DocumentList), "`other` should be either Document or DocumentList, but is %r" %(other)
         
-        if isinstance(other, scinet3.modelset.DocumentSet):
+        if isinstance(other, scinet3.modellist.DocumentList):
             return other.similarity_to(self, metric = metric)
         else:
             if metric == "cosine":
@@ -239,7 +239,7 @@ class Keyword(KeywordFeedbackReceiver, Model):
         """
         get multiple keywords by id
         """
-        return scinet3.modelset.KeywordSet([cls.get(_id)
+        return scinet3.modellist.KeywordList([cls.get(_id)
                                              for _id in ids])
 
     @property
@@ -292,14 +292,14 @@ class Keyword(KeywordFeedbackReceiver, Model):
         The metric can vary
         
         Param:
-        other: Keyword or KeywordSet
+        other: Keyword or KeywordList
         
         Return:
         float
         """
-        assert type(other) in (Keyword, scinet3.modelset.KeywordSet), "`other` should be either Keyword or KeywordSet, but is %r" %other
+        assert type(other) in (Keyword, scinet3.modellist.KeywordList), "`other` should be either Keyword or KeywordList, but is %r" %other
         
-        if isinstance(other, scinet3.modelset.KeywordSet):
+        if isinstance(other, scinet3.modellist.KeywordList):
             return other.similarity_to(self, metric = metric)
         else:
             if metric == "cosine":

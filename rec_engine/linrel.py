@@ -6,6 +6,8 @@ from collections import OrderedDict
 from types import IntType, FloatType
 
 from scinet3.model import (Document, Keyword)
+from scinet3.modellist import (DocumentList, KeywordList)
+
 from scinet3.rec_engine.base import Recommender
 from scinet3.linrel import linrel
 
@@ -212,7 +214,7 @@ class LinRelRecommender(Recommender):
 
         assoc_kws = self.associated_keywords_from_docs(rec_docs, rec_kws)
         
-        return rec_docs, rec_kws + assoc_kws            
+        return DocumentList(rec_docs), KeywordList(rec_kws + assoc_kws)
 
     def __init__(self, recom_kw_num, recom_doc_num,  #recommendation number
                  linrel_kw_mu, linrel_kw_c, linrel_doc_mu, linrel_doc_c, #linrel parameters

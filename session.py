@@ -2,8 +2,8 @@ import pickle
 import uuid
 from collections import defaultdict
 from types import IntType, StringType, DictType
-from scinet3.model import Document, Keyword
 
+from scinet3.model import Document, Keyword
 from scinet3.redis_util import (isnumber, dict2right_type)
 
 class RecommendationSessionHandler(object):
@@ -296,16 +296,14 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
 
     @property
     def recom_docs(self):
-        return [[Document.get(_id)
-                 for _id in id_list]
+        return [Document.get_many(id_list)
                 for id_list in  self.get("recommended_docs", [])]
         
     @property
     def recom_kws(self):
-        return [[Keyword.get(_id)
-                 for _id in id_list]
+        return [Keyword.get_many(id_list)
                 for id_list in  self.get("recommended_kws", [])]
-    
+
     @property
     def last_recom_docs(self):
         """

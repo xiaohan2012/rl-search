@@ -3,6 +3,7 @@ from types import IntType, BooleanType
 
 from scinet3.rec_engine.base import Recommender
 from scinet3.model import Document, Keyword
+from scinet3.modellist import DocumentList, KeywordList
 
 class RandomRecommender(Recommender):
 
@@ -59,7 +60,7 @@ class RandomRecommender(Recommender):
         else:
             kws = self.recommend_keywords(kw_n or self.kw_n)
         
-        return docs, kws
+        return DocumentList(docs), KeywordList(kws)
 
     def __init__(self, kw_n, doc_n, assoc_kws_with_docs, *args, **kwargs):
         """

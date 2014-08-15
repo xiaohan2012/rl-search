@@ -1,10 +1,10 @@
 ####################
-# Testing ModelSet
+# Testing Modellist
 ####################
 import unittest
 
 from scinet3.model import Document, Keyword
-from scinet3.modelset import (DocumentSet, KeywordSet)
+from scinet3.modellist import (DocumentList, KeywordList)
 from scinet3.numerical_util import matrix2array
 
 from util import (config_doc_kw_model, get_session, NumericTestCase)
@@ -26,6 +26,13 @@ class HashableTest(unittest.TestCase):
 
         self.assertEqual(kwset1, kwset2)
         self.assertNotEqual(kwset3, kwset2)
+
+        docset1 = Document.get_many([1,2,3])
+        docset2 = Document.get_many([2,3,1])
+        docset3 = Document.get_many([4,5,6])
+
+        self.assertEqual(docset1, docset2)
+        self.assertNotEqual(docset3, docset2)
         
     def test_equality_different_type(self):
         kwset = Keyword.get_many(["redis", "a", "the"])
@@ -36,11 +43,11 @@ class HashableTest(unittest.TestCase):
     def test_kw_hashable(self):
         d = {}
         kwset1 = Keyword.get_many(["redis", "a", "the"])
-        kwset2 = Keyword.get_many(["redis", "a", "the"])
+        kwset2 = Keyword.get_many(["a", "the", "redis"])
         kwset3 = Keyword.get_many(["redis", "a", "python"])
 
         d[kwset1] = 1
-        d[kwset2] = 2 #overides it
+        d[kwset2] = 2 #override
         d[kwset3] = 3 
 
         self.assertEqual({kwset1:2, kwset3: 3}, d)
@@ -52,7 +59,7 @@ class HashableTest(unittest.TestCase):
         docset3 = Document.get_many([4,5,6])
 
         d[docset1] = 1
-        d[docset2] = 2 #overides it
+        d[docset2] = 2 #override
         d[docset3] = 3 
 
         self.assertEqual({docset1:2, docset3: 3}, d)
@@ -66,7 +73,7 @@ class SimilarityTest(NumericTestCase):
 
     def test_keyword_centroid(self):
         kw = Keyword.get("a")
-        kwset1 = KeywordSet([kw])
+        kwset1 = KeywordList([kw])
         
         self.assertArrayAlmostEqual(matrix2array(kwset1.centroid), kw.vec.toarray()[0])
 
@@ -80,7 +87,7 @@ class SimilarityTest(NumericTestCase):
 
     def test_document_centroid(self):
         doc = Document.get(1)
-        docset1 = DocumentSet([doc])
+        docset1 = DocumentList([doc])
         
         self.assertArrayAlmostEqual(matrix2array(docset1.centroid), doc.vec.toarray()[0])
 
@@ -92,7 +99,7 @@ class SimilarityTest(NumericTestCase):
         self.assertArrayAlmostEqual(matrix2array(docset2.centroid), 
                                     (doc1.vec.toarray()[0] + doc2.vec.toarray()[0]) / 2)        
 
-    def test_model2modelset_similarity(self):
+    def test_model2modellist_similarity(self):
         #for keywords
         kw = Keyword.get("redis")
         kwset = Keyword.get_many(["database", "mysql"])
@@ -105,7 +112,7 @@ class SimilarityTest(NumericTestCase):
         
         self.assertAlmostEqual(0.7382455893131392, doc.similarity_to(docset))
         
-    def test_modelset2model_similarity(self):
+    def test_modellist2model_similarity(self):
         #for keywords
         kw = Keyword.get("redis")
         kwset = Keyword.get_many(["database", "mysql"])
@@ -120,7 +127,7 @@ class SimilarityTest(NumericTestCase):
         self.assertAlmostEqual(0.7382455893131392, docset.similarity_to(doc))
         self.assertAlmostEqual(doc.similarity_to(docset), docset.similarity_to(doc))
 
-    def test_modelset2modelset_similarity(self):
+    def test_modellist2modellist_similarity(self):
         #for keywords
         kwset1 = Keyword.get_many(["redis", "a"])
         kwset2 = Keyword.get_many(["database", "the"])

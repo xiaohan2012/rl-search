@@ -8,7 +8,7 @@ from scinet3.numerical_util import cosine_similarity
 
 from scipy.sparse import csr_matrix
 
-class ModelSet(set):
+class ModelList(list):
     @property
     @memoized
     def centroid(self):
@@ -29,31 +29,36 @@ class ModelSet(set):
     def ids_str(self):
         return ",".join(sorted([str(obj.id) for obj in self]))
 
+
+    def __repr__(self):
+        return "%s:(%r)" %(self.__class__.__name__, list(self))
+
     #######################
-    # following two methods make ModelSet hashable
+    # make ModelList hashable
     #######################
     def __eq__(self, other):
         return self.__class__ == other.__class__ and self.ids_str == other.ids_str
-        
+
     def __hash__(self):
         return hash(self.ids_str)
 
-class DocumentSet(ModelSet):
+
+class DocumentList(ModelList):
     @memoized
     def similarity_to(self, other, metric = "cosine"):
         """
         set-to-set similarity
         
         Param:
-        docs: DocumentSet
+        docs: DocumentList
 
         Return:
         float        
         """
-        assert type(other) in (scinet3.model.Document, DocumentSet), "`other` should be either Document or DocumentSet, but is %r" %other
+        assert type(other) in (scinet3.model.Document, DocumentList), "`other` should be either Document or DocumentList, but is %r" %other
         
         if isinstance(other, scinet3.model.Document):
-            other = DocumentSet([other])
+            other = DocumentList([other])
 
         if metric == "cosine":
             return cosine_similarity(self.centroid, other.centroid)
@@ -68,25 +73,25 @@ class DocumentSet(ModelSet):
         for obj in objs:
             assert type(obj) is scinet3.model.Document, "obj should be Document, but is %r" %obj
             
-        super(DocumentSet, self).__init__(iterable)
+        super(DocumentList, self).__init__(iterable)
         
 
-class KeywordSet(ModelSet):
+class KeywordList(ModelList):
     @memoized
     def similarity_to(self, other, metric = "cosine"):
         """
         set-to-set similarity
         
         Param:
-        docs: KeywordSet
+        docs: KeywordList
 
         Return:
         float        
         """
-        assert type(other) in (scinet3.model.Keyword, KeywordSet), "`other` should be either Keyword or KeywordSet, but is %r" %other
+        assert type(other) in (scinet3.model.Keyword, KeywordList), "`other` should be either Keyword or KeywordList, but is %r" %other
         
         if isinstance(other, scinet3.model.Keyword):
-            other = KeywordSet([other])
+            other = KeywordList([other])
         
         if metric == "cosine":
             return cosine_similarity(self.centroid, other.centroid)
@@ -100,5 +105,5 @@ class KeywordSet(ModelSet):
         for obj in objs:
             assert type(obj) is scinet3.model.Keyword, "obj should be Keyword, but is %r" %obj
             
-        super(KeywordSet, self).__init__(iterable)
+        super(KeywordList, self).__init__(iterable)
         

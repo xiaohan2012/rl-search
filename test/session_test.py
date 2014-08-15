@@ -124,8 +124,8 @@ class RecommendationTrackingTest(unittest.TestCase):
         self.maxDiff = None
 
     def test_add_kws(self):
-        iter1 = [Keyword.get(_id) for _id in ["redis", "database", "mysql"]]
-        iter2 = [Keyword.get(_id) for _id in ["redis", "database", "python"]]
+        iter1 = Keyword.get_many(["redis", "database", "mysql"])
+        iter2 = Keyword.get_many(["redis", "database", "python"])
         
         self.session.add_kw_recom_list(iter1)        
         self.assertEqual([iter1], self.session.recom_kws)
@@ -141,6 +141,7 @@ class RecommendationTrackingTest(unittest.TestCase):
         iter2 = Document.get_many([2, 3, 4])
         
         self.session.add_doc_recom_list(iter1)        
+        
         self.assertEqual([iter1], self.session.recom_docs)
 
         self.session.add_doc_recom_list(iter2)        

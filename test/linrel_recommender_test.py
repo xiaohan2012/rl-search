@@ -34,7 +34,7 @@ class LinRelUtilityTest(NumericTestCase):
         def has_database_filter(objs):
             return filter(lambda obj: Keyword.get("database") in obj.keywords,  objs)
 
-        self.assertEqual(Document.get_many([1, 7]),
+        self.assertEqual(list(Document.get_many([1, 7])),
                          self.r._filter_objs(Document.get_many([1, 7, 8]),
                                              [has_redis_filter, has_database_filter])
         )
@@ -95,12 +95,12 @@ class LinRelRecommenderWithoutFilterTest(NumericTestCase):
 
     def test_recommend_keywords(self):
         kws = self.r.recommend_keywords(self.session, 4, 1, .5)
-        self.assertEqual(Keyword.get_many(["redis", "database", "the", "mysql"]), 
+        self.assertEqual(list(Keyword.get_many(["redis", "database", "the", "mysql"])), 
                          kws)
 
     def test_recommend_documents(self):
         docs = self.r.recommend_documents(self.session, 4, 1, .5)
-        self.assertEqual(Document.get_many([1,8,2,6]), 
+        self.assertEqual(list(Document.get_many([1,8,2,6])), 
                          docs)
 
     def test_recommend(self):
@@ -164,14 +164,16 @@ class LinRelRecommenderWithFilterTest(NumericTestCase):
                                         filters = [self.my_kw_filter])
         print Keyword.get("python")
         print Keyword.get("python").docs
-        self.assertEqual(Keyword.get_many(["redis", "database", "python", "web"]), kws)
+        self.assertEqual(list(Keyword.get_many(["redis", "database", "python", "web"])), 
+                         kws)
 
     def test_recommend_documents(self):
         docs = self.r.recommend_documents(self.session,
                                           8, 1, 0.5, 
                                           filters = [self.kw_count_filter, self.has_database_filter])
 
-        self.assertEqual(Document.get_many([1,2,6,9,7,3,4,5]), docs)
+        self.assertEqual(list(Document.get_many([1,2,6,9,7,3,4,5])), 
+                         docs)
 
     def test_recommend(self):
         docs, kws = self.r.recommend(self.session,
