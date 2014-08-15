@@ -296,11 +296,17 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
 
     @property
     def recom_docs(self):
+        """
+        Recommended documents list, from latest to oldest
+        """
         return [Document.get_many(id_list)
                 for id_list in  self.get("recommended_docs", [])]
         
     @property
     def recom_kws(self):
+        """
+        Recommended keywords list, from latest to oldest
+        """
         return [Keyword.get_many(id_list)
                 for id_list in  self.get("recommended_kws", [])]
 

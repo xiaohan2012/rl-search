@@ -1,8 +1,11 @@
+##############################
+# Test for the session module
+##############################
+
 import unittest
 
 import redis
 from scinet3.model import Document, Keyword
-
 
 from util import (config_doc_kw_model, get_session)
 
