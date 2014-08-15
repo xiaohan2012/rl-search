@@ -44,10 +44,10 @@ define("linrel_doc_mu", default=1, help="Value for \mu in the linrel algorithm f
 define("linrel_doc_c", default=0.2, help="Value for c in the linrel algorithm for document")
 
 
-define("kw_fb_threshold", default= 0.2, help="The feedback threshold used when filtering keywords")
-define("kw_fb_from_docs_threshold", default= 0.0, help="The feedback(from documents) threshold used when filtering keywords")
-define("doc_fb_threshold", default= 0.2, help="The feedback threshold used when filtering documents")
-define("doc_fb_from_kws_threshold", default= 0.0, help="The feedback(from keywords) threshold used when filtering documents")
+define("kw_fb_threshold", default= 0.01, help="The feedback threshold used when filtering keywords")
+define("kw_fb_from_docs_threshold", default= 0.01, help="The feedback(from documents) threshold used when filtering keywords")
+define("doc_fb_threshold", default= 0.01, help="The feedback threshold used when filtering documents")
+define("doc_fb_from_kws_threshold", default= 0.01, help="The feedback(from keywords) threshold used when filtering documents")
 
 
 ERR_INVALID_POST_DATA = 1001
@@ -74,44 +74,6 @@ class Application(tornado.web.Application):
         Recommender.init(self.db, options.table, **self.kwdoc_data.__dict__)        
         
 class RecommandHandler(BaseHandler):        
-    def _fill_kw_weight(self, kws, docs):
-        """fill in documents' weight for each keyword"""        
-        kw_idx = [self.kwdoc_data._kw_ind[kw['id']] for kw in kws] 
-        doc_idx = [self.kwdoc_data._doc_ind[doc['id']] for doc in docs] 
-        
-        weights = get_weights(self.kwdoc_data._kw2doc_m, kw_idx, 
-                              self.kwdoc_data._doc_ind_r, self.kwdoc_data._kw_ind_r, 
-                              col_idx = doc_idx)        
-        for kw in kws:
-            kw_id = kw['id']
-            kw['docs'] = weights[kw_id]
-        
-    def _fill_doc_weight(self, docs):
-        """fill in keywords' weight for each document"""        
-        doc_idx = [self.kwdoc_data._doc_ind[doc['id']] for doc in docs] 
-        
-        weights = get_weights(self.kwdoc_data._doc2kw_m, doc_idx, 
-                              self.kwdoc_data._kw_ind_r, self.kwdoc_data._doc_ind_r, 
-                              col_idx = None)#no keyword are passed
-        
-        for doc in docs:
-            doc_id = doc['id']
-            doc['kws'] = weights[doc_id]        
-
-    def _get_doc(self, doc_id):
-        sql_temp = 'SELECT id, title, keywords FROM %s WHERE id=%%s' %options.table
-        row = self.db.get(sql_temp, doc_id)
-        row['keywords'] = tornado.escape.json_decode(row['keywords'])
-        return row
-
-    def _get_docs(self, doc_ids):
-        return [self._get_doc(doc_id) 
-                for doc_id in doc_ids]
-
-    def _get_kws(self, kw_ids):
-        return [{'id': kw} 
-                for kw in kw_ids]
-        
     def post(self):
         try:
             data = tornado.escape.json_decode(self.request.body) 
@@ -161,7 +123,7 @@ class RecommandHandler(BaseHandler):
                                                   filters = [fb_filter, fb_from_kws_filter],
                                                   feedbacks = doc_fb)
 
-        #add the scores for kws
+        #add the display flag for kws
         print rec_kws
         for rec_kw in rec_kws: #they are displayed
             rec_kw['display'] = True

@@ -1,0 +1,15 @@
++----+-------------------------------------+-----------------------------------------+
+| id | keywords                            | title                                   |
++----+-------------------------------------+-----------------------------------------+
+|  1 | ["redis", "database", "a"]          | redis: key-value-storage database (ONE) |
+|  2 | ["redis", "database", "the"]        | redis: key-value-storage database (TWO) |
+|  3 | ["tornado", "web", "python", "a"]   | tornado: python  web framework(ONE)     |
+|  4 | ["tornado", "python", "web", "the"] | tornado: python  web framework(TWO)     |
+|  5 | ["python", "database", "mysql"]     | torndb: python mysql wrapper            |
+|  6 | ["python", "database", "redis"]     | pyredis: python redis wrapper           |
+|  7 | ["database", "mysql"]               | mysql: relational database              |
+|  8 | ["python", "a"]                     | some python page                        |
+|  9 | ["database", "the"]                 | some database page                      |
+| 10 | ["web", "the"]                      | some random page                        |
++----+-------------------------------------+-----------------------------------------+
+

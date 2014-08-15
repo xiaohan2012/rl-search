@@ -13,12 +13,17 @@ from pprint import pprint
 from cPickle import load
 from copy import copy
 
-from scipy import linalg, mat, dot
+import scinet3.modelset
 
-from data import FeatureMatrixAndIndexMapping as fmim
-from fb_receiver import KeywordFeedbackReceiver, DocumentFeedbackReceiver
+from scinet3.decorators import memoized
+from scinet3.data import FeatureMatrixAndIndexMapping as fmim
+from scinet3.fb_receiver import KeywordFeedbackReceiver, DocumentFeedbackReceiver
+from scinet3.numerical_util import cosine_similarity
 
-class Document(DocumentFeedbackReceiver, dict):
+class Model(dict):
+    pass
+
+class Document(DocumentFeedbackReceiver, Model):
     __all_docs_by_id = {}
     
     all_docs = []
@@ -100,8 +105,8 @@ class Document(DocumentFeedbackReceiver, dict):
         """
         get multiple documents by id
         """
-        return [cls.get(_id)
-                for _id in ids]
+        return scinet3.modelset.DocumentSet([cls.get(_id)
+                                             for _id in ids])
 
     @property
     def vec(self):
@@ -110,15 +115,26 @@ class Document(DocumentFeedbackReceiver, dict):
             cls = self.__class__
             self._vec = cls.doc2kw_m[cls.doc_ind[self.id],:]
         return self._vec
-
+    
+    @memoized
     def similarity_to(self, other, metric="cosine"):
+        """
+        Measuring the similarity between this object the another one
+        
+        The metric can vary
+        
+        Param:
+        other: Document
+        
+        Return:
+        float
+        """
         assert type(other) is Document, "`other` should be Document, but is %r" %(other)
         
-        vec1, vec2 = mat(self.vec.todense()), mat(other.vec.todense())
         if metric == "cosine":
-            return (dot(vec1,vec2.T)/linalg.norm(vec1)/linalg.norm(vec2)).tolist()[0][0]
+            return cosine_similarity(self.vec, other.vec)
         else:
-            raise NotImplementedError("Only cosine distance metric is implemented for now")
+            raise NotImplementedError("Only cosine similarity metric is implemented for now")
     
     @property
     def _kw_weight(self):
@@ -185,7 +201,7 @@ class Document(DocumentFeedbackReceiver, dict):
     def __eq__(self, other):
         return (self.id) == (other.id)
 
-class Keyword(KeywordFeedbackReceiver, dict):
+class Keyword(KeywordFeedbackReceiver, Model):
     __all_kws_by_id = {}
     all_kws = []
     
@@ -218,8 +234,8 @@ class Keyword(KeywordFeedbackReceiver, dict):
         """
         get multiple keywords by id
         """
-        return [cls.get(_id)
-                for _id in ids]
+        return scinet3.modelset.KeywordSet([cls.get(_id)
+                                             for _id in ids])
 
     @property
     def id(self):    
@@ -253,20 +269,39 @@ class Keyword(KeywordFeedbackReceiver, dict):
 
     @property
     def vec(self):
-        """ feature vector of the keyword """
+        """ 
+        feature vector of the keyword
+        Return:
+        sparse matrix in Compressed Sparse Row format
+        """
         if not hasattr(self, "_vec"):
             cls = self.__class__
-            self._vec = cls.kw2doc_m[cls.kw_ind[self.id],:]
+            self._vec = cls.kw2doc_m[cls.kw_ind[self.id], :]
         return self._vec
 
+    @memoized
     def similarity_to(self, other, metric="cosine"):
-        assert type(other) is Keyword, "`other` should be Keyword, but is %r" %(other)
+        """
+        Measuring the similarity between this object the another one
         
-        vec1, vec2 = mat(self.vec.todense()), mat(other.vec.todense())
-        if metric == "cosine":
-            return (dot(vec1,vec2.T)/linalg.norm(vec1)/linalg.norm(vec2)).tolist()[0][0]
+        The metric can vary
+        
+        Param:
+        other: Keyword or KeywordSet
+        
+        Return:
+        float
+        """
+        assert type(other) in (Keyword, scinet3.modelset.KeywordSet), "`other` should be either Keyword or KeywordSet, but is %r" %other
+        if isinstance(other, scinet3.modelset.KeywordSet):
+            return other.similarity_to(self, metric = metric)
         else:
-            raise NotImplementedError("Only cosine distance metric is implemented for now")
+            if metric == "cosine":
+                sim_func = cosine_similarity
+            else:
+                raise NotImplementedError("Only cosine similarity metric is implemented for now")
+                
+            return sim_func(self.vec, other.vec)            
 
     def fb(self, session):
         """
@@ -307,48 +342,4 @@ def config_model(conn, table, matrices_and_indices, doc_alpha, kw_alpha):
     Document.set_alpha(doc_alpha)
     
     Keyword.config(**matrices_and_indices)
-    Keyword.set_alpha(kw_alpha)
-    
-def test():    
-    # db = 'archive'
-    # table = 'archive_500'
-    
-    # import torndb
-    # conn = torndb.Connection("%s:%s" % ('ugluk', 3306), db, 'hxiao', 'xh24206688')
-
-    # from data import kw2doc_matrix
-    # matrices_and_indices = kw2doc_matrix(conn, table, keyword_field_name = 'keywords').__dict__
-
-    # config(conn, table, matrices_and_indices, 0.7, 0.7)
-
-    # #prepare the session
-    # from session import RedisRecommendationSessionHandler
-    # import redis
-    # redis_db="archive"
-    # redis_conn = redis.StrictRedis(host='ugluk', port=6379, db=redis_db)
-    # session = RedisRecommendationSessionHandler.get_session(redis_conn)
-    
-    # #load the documents 
-    # docs = Document.load_all_from_db()
-    # session.doc_feedbacks = {1: .2}
-    # session.kw_feedbacks = {'pebble game': .2, 'graphs': .5}
-    
-    # doc = Document.get(1)
-    # print doc
-    # print doc.fb(session)
-    # print doc.fb_from_kws(session)
-    
-    # pprint(docs[0].keywords)
-    # pprint(docs[0].keywords[0].docs)
-
-    # kw = Keyword.get('algorithms')
-    # print kw
-    # print kw.docs
-    # print kw.fb(session)
-    # print kw.fb_from_docs(session)
-    pass
-    
-
-    
-if __name__ == "__main__":
-    test()
+    Keyword.set_alpha(kw_alpha)    

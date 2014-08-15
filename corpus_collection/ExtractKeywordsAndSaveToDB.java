@@ -14,41 +14,42 @@ import java.io.IOException;
 
 public class ExtractKeywordsAndSaveToDB
 {
+
+    private Extractor extractor = null;
+    private Connection conn = null;
     
-    public static void main(String[] args) throws SQLException, ClassNotFoundException
-    {
-	
-	
-	Extractor extractor = new Extractor();
+    public ExtractKeywordsAndSaveToDB() throws SQLException, ClassNotFoundException{
+	extractor = new Extractor();
 	extractor.refinePhrases(true);
 	extractor.setCutOff(800);
 
-	PreparedStatement prepSelStmt = null;
-	PreparedStatement prepUpdStmt = null;
-	ResultSet rs = null;	
-	Connection conn = null;
-	
 	Class.forName("com.mysql.jdbc.Driver");
 
 	conn = DriverManager
 	    .getConnection("jdbc:mysql://ugluk/scinet3?"
 			   + "user=hxiao&password=xh24206688");
+    }
+    
+    public void extractBatch(int from_id, int to_id) throws SQLException{
+	for(int i=from_id; i<to_id;i++){
+	    extractAndSave(i);
+	}
+    }
+    public void extractAndSave(int rowId) throws SQLException{
+	PreparedStatement prepSelStmt = null;
+	PreparedStatement prepUpdStmt = null;
+	ResultSet rs = null;	
 
-	// prepSelStmt = conn.prepareStatement("SELECT id, abstract FROM archive WHERE id = ?");
-	prepSelStmt = conn.prepareStatement("SELECT id, processed_content as abstract FROM webpage WHERE id = ?");
-	// prepUpdStmt = conn.prepareStatement("UPDATE archive SET keywords = ? WHERE id = ?");
+	prepSelStmt = conn.prepareStatement("SELECT id, processed_content as abstract FROM webpage WHERE !isnull(processed_content) and id = ?");
 	
 	//Integer upper = 69853;
-	Integer upper = 163;
-	for(Integer rowId = upper; rowId <= upper; rowId++){
-	    System.out.println(rowId);
+	System.out.println(rowId);
 
-	    prepSelStmt.setInt(1, rowId);
+	prepSelStmt.setInt(1, rowId);
 	
-	    rs = prepSelStmt.executeQuery();
+	rs = prepSelStmt.executeQuery();
 	
-	    rs.next();
-
+	if(rs != null && rs.next()){
 	    String abst = rs.getString("abstract");
 
 	    String [] topKeys = extractor.getTopN(12, abst, false);
@@ -64,22 +65,17 @@ public class ExtractKeywordsAndSaveToDB
 		list.writeJSONString(out);
 		String jsonText = out.toString();
 		
-		System.out.print(abst);
-		System.out.print(jsonText);
-		
-		// prepUpdStmt.setString(1, jsonText);
-		// prepUpdStmt.setInt(2, rowId);
-		
-		// prepUpdStmt.executeUpdate();
-
-		//conn.commit();				
+		System.out.println(rowId);
 	    }
 	    catch(IOException e){
 		e.printStackTrace();
 	    }
 
-
 	}
 	
+    }
+    public static void main(String[] args) throws SQLException, ClassNotFoundException {	       
+	ExtractKeywordsAndSaveToDB e = new ExtractKeywordsAndSaveToDB();
+	e.extractBatch(1,250);
     }
 }
