@@ -1,10 +1,12 @@
 #########################
 # Modeling set of Document/Keyword
 #########################
+import pprint
+
 import scinet3.model
 
 from scinet3.decorators import memoized
-from scinet3.numerical_util import cosine_similarity
+from scinet3.util.numerical import cosine_similarity
 
 from scipy.sparse import csr_matrix
 
@@ -23,19 +25,22 @@ class ModelList(list):
         else:
             return (csr_matrix([model.vec.toarray()[0,:] 
                                 for model in self]).sum(0) 
-                    / len(self))
+                    / len(self))    
+
+    def __repr__(self):
+        return "%s:(%s)" %(self.__class__.__name__, pprint.pformat(list(self)))
+
+    ##########################
+    # slicing should be implemented
+    ##########################
         
+    #######################
+    # make ModelList hashable
+    #######################
     @property
     def ids_str(self):
         return ",".join(sorted([str(obj.id) for obj in self]))
 
-
-    def __repr__(self):
-        return "%s:(%r)" %(self.__class__.__name__, list(self))
-
-    #######################
-    # make ModelList hashable
-    #######################
     def __eq__(self, other):
         return self.__class__ == other.__class__ and self.ids_str == other.ids_str
 

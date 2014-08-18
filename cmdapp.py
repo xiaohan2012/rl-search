@@ -1,6 +1,8 @@
 import tornado
 from tornado.options import define, options
 
+from types import StringType
+
 import torndb
 import redis
 
@@ -12,6 +14,7 @@ define("mysql_host", default="ugluk", help="db database host")
 define("mysql_user", default="hxiao", help="db database user")
 define("mysql_password", default="xh24206688", help="db database password")
 define("mysql_database", default="archive", help="db database name")
+define("mysql_keyword_fieldname", default="keywords", help="name of field that stores the keywords")
 
 define("redis_port", default=6379, help="redis' port", type=int)
 define("redis_host", default="ugluk", help="key-value cache host")
@@ -22,7 +25,7 @@ define("refresh_pickle", default=False, help="refresh pickle or not")
 
 define("recom_kw_num", default=5, help="recommended keyword number at each iter")
 define("recom_doc_num", default=10, help="recommended document number at each iter")
-define("samp_kw_num", default=5, help="sampled keyword number from documents")
+define("samp_kw_num_from_doc", default=5, help="sampled keyword number from documents")
 define("samp_doc_num", default=5, help="extra document number apart from the recommended ones")
 
 define("linrel_kw_mu", default=1., help="Value for \mu in the linrel algorithm for keyword")
@@ -51,17 +54,15 @@ class CmdApp():
         self.init_recommender = init_recommender
         self.main_recommender = main_recommender
 
-    def recommend(self, session, start = False):
+    def recommend(self, start = False, *args, **kwargs):
         """
         recommend documents and keywords.
-
-        If query is given, use the query-based engine.
-        Otherwise, use the LinRel based one
+        
         """
         if start:
-            return self.init_recommender.recommend()            
+            return self.init_recommender.recommend(*args, **kwargs)
         else:
-            return self.main_recommender.recommend(session)
+            return self.main_recommender.recommend(*args, **kwargs)
         
     def receive_feedbacks(self, session, feedbacks):
         """
@@ -74,19 +75,19 @@ class CmdApp():
         "dockws": [[keyword_id, doc_id, feedback_value], ...]
         }
         """
-        for doc_fb in feedbacks['docs']:
+        for doc_fb in feedbacks.get("docs", []):
             doc_id, fb = doc_fb
             doc = Document.get(doc_id)
             
             self.ppgt.fb_from_doc(doc, fb, session)
 
-        for kw_fb in feedbacks['kws']:
+        for kw_fb in feedbacks.get("kws", []):
             kw_id, fb = kw_fb
             kw = Keyword.get(kw_id)
             
             self.ppgt.fb_from_kw(kw, fb, session)
 
-        for dockw_fb in feedbacks['dockws']:
+        for dockw_fb in feedbacks.get("dockws", []):
             kw_id, doc_id, fb = dockw_fb
             doc = Document.get(doc_id)
             kw = Keyword.get(kw_id)
@@ -125,6 +126,8 @@ class CmdApp():
         favored_docs = [index2doc_mapping[index] for index in map(int, doc_str.split())]
         
         #ask question about standalone keywords
+        # only that are recommended are displayed
+        # this does not include the associted ones
         print "List of keywords: "
         index2kw_mapping = dict(enumerate(kws))
 
@@ -165,47 +168,25 @@ class CmdApp():
         return fb
         
 
-def main():
-    tornado.options.parse_command_line()
-
+def main(desired_doc, desired_kw, session):    
     ######################
     #Global variables to be set
     ######################
-    AUTO_INTERACT = False
-
-    ######################
-    # Configure the database, session and model
-    ######################
-    db_conn = torndb.Connection("%s:%s" % (options.mysql_host, options.mysql_port), 
-                                options.mysql_database, options.mysql_user, options.mysql_password)
-
-    from scinet3.data import load_fmim
-    fmim_dict = load_fmim(db_conn, options.mysql_table, keyword_field_name = 'keywords').__dict__
-
-    from scinet3.model import config_model    
-    config_model(db_conn, options.mysql_table, fmim_dict, options.doc_alpha, options.kw_alpha)
-
-    #########################
-    # Redis-based session confuguration
-    #########################
-    from scinet3.session import RedisRecommendationSessionHandler
-    redis_conn = redis.StrictRedis(host=options.redis_host, port=options.redis_port, db=options.redis_db)
-        
-    ######################
-    # This is action tracker
-    ######################
-    from tracker import ActionTrack
-    action_tracker = ActionTrack()
-
+    AUTO_INTERACT = True
+    MAX_ITER = 10
+    INTIAL_QUERY = "Neuron"
+    
     ######################
     # This is our robot
     ######################
     if AUTO_INTERACT:
-        robot = Robot()
+        from robot import NearSightedRobot
+        robot = NearSightedRobot(INTIAL_QUERY)
+        robot.setGoal(desired_docs, desired_kws)
 
     ######################
     # Just an example of  feedback
-    # not used by the program
+    # *** not used by the program ***
     ######################
 
     feedback = {"docs": [[1, .8], [1001, .9]],
@@ -233,8 +214,10 @@ def main():
     # Recommender initialization
     # including filter binding to recommender
     ########################
-    from scinet3.rec_engine.random_rec import RandomRecommender
-    init_recommender = RandomRecommender(options.recom_kw_num, options.recom_doc_num, True)
+    from scinet3.rec_engine.query import QueryBasedRecommender
+    init_recommender = QueryBasedRecommender(options.recom_doc_num, options.samp_doc_num, 
+                                             options.recom_kw_num, options.samp_kw_num_from_doc,
+                                             **fmim_dict)
     
     from scinet3.rec_engine.linrel import LinRelRecommender
     
@@ -256,30 +239,79 @@ def main():
     #######################
     # Our main app starts!!
     #######################
-    session_id = None
     just_started = True
+    iter_n = 0
     
-    while True:
-        session = RedisRecommendationSessionHandler.get_session(redis_conn, session_id)
-        session_id = session.session_id
-        
-        docs, kws = app.recommend(session, start = just_started)
+    while True: 
+        iter_n += 1
+        print "At iteration %d" %iter_n
+                        
+        if just_started:
+            docs, kws = app.recommend(start = just_started, query = robot.initial_query)
+        else:
+            docs, kws = app.recommend(start = just_started, session = session)
+
         just_started = False
         
-        if AUTO_INTERACT:#if robot is asked to come into stage
-            feedback = robot.give_feedbacks(docs, kws)
-        else:
-            feedback = app.interact_with_user(docs, kws)
-
+        kws_to_be_displayed = filter(lambda kw: kw.has_key("recommended") and kw["recommended"], #kinda weird, kw.get("recommended", False) **should** be OK, but ...
+                                     kws)
+        
         #session records recommendation
         session.add_doc_recom_list(docs)
         session.add_kw_recom_list(kws)
+        
+        if AUTO_INTERACT:#if robot is asked to come into stage
+            print "%d / %d" %(iter_n, MAX_ITER)
+            if iter_n > MAX_ITER:
+                break
+            
+            feedback = robot.give_feedback(docs, kws_to_be_displayed)
+        else:
+            feedback = app.interact_with_user(docs, kws_to_be_displayed)
+        
                     
         app.receive_feedbacks(session, feedback)
 
         # action_tracker.record_feedback(feedback)
         # action_tracker.record_recommendation(docs, keywords)
+        
+if __name__ == "__main__":    
+    tornado.options.parse_command_line()
+    
+    from scinet3.util.profiler import profile_manager
+    from scinet3.util.ir_eval import evaluation_manager
 
+    ######################
+    # Configure the database, session and model
+    ######################
+    db_conn = torndb.Connection("%s:%s" % (options.mysql_host, options.mysql_port), 
+                                options.mysql_database, options.mysql_user, options.mysql_password)
 
-if __name__ == "__main__":
-    main()
+    from scinet3.data import load_fmim
+    fmim_dict = load_fmim(db_conn, options.mysql_table, keyword_field_name = options.mysql_keyword_fieldname, refresh = options.refresh_pickle).__dict__
+
+    from scinet3.model import config_model    
+    config_model(db_conn, options.mysql_table, fmim_dict, options.doc_alpha, options.kw_alpha)
+
+    #########################
+    # Redis-based session confuguration
+    #########################
+    from scinet3.session import RedisRecommendationSessionHandler
+    redis_conn = redis.StrictRedis(host=options.redis_host, port=options.redis_port, db=options.redis_db)
+
+    session = RedisRecommendationSessionHandler.get_session(redis_conn, None)
+    
+    #########################
+    # Desired docs/kws
+    #########################
+    desired_docs = Document.get_many([3, 161, 207, 234, 237, 264, 269, 282, 283, \
+                                      295, 296, 305, 329, 330, 335, 338, 354, 374, \
+                                      375, 383, 385, 469, 470, 497])
+    
+    desired_kws = Keyword.get_many(["Artificial neural network", "Neuron", \
+                                    "Computational neuroscience", "Biological neural network"])
+
+    
+    with evaluation_manager(desired_docs, desired_kws, session):
+        main(desired_docs, desired_kws, session)
+

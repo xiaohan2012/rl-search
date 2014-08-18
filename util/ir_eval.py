@@ -2,12 +2,47 @@
 # Util functions for evaluation of the IR system
 #######################
 
+from contextlib import contextmanager
+
+from scinet3.modellist import (DocumentList, KeywordList)
+
+@contextmanager
+def evaluation_manager(desired_docs, desired_kws, session):
+    evaluator = GoalBasedEvaluator()
+    evaluator.setGoal(desired_docs, desired_kws)
+    
+    yield
+
+    eval_results = evaluator.evaluate(session.recom_docs, session.recom_kws)
+
+    print "Evaluation results:"
+
+    print "for docs:"
+    print eval_results[0]
+
+    print "for kws:"
+    print eval_results[1]
+
+    
+
+
 class GoalBasedEvaluator(object):
     """
     Evaluate the IR performance using the similarity to the goal
     """
     
     def setGoal(self, docs, kws):
+        """
+        docs: DocumentList, the documents desirable
+        kws: KeywordList, the keywords desirable
+        """
+        
+        assert type(docs) is DocumentList, "docs should be DocumentList, but is %r" %docs
+        assert type(kws) is KeywordList, "kws should be KeywordList, but is %r" %kws
+        
+        assert len(docs) > 0, "target_docs shouldn't be empty"
+        assert len(kws) > 0, "target_kws shouldn't be empty"
+        
         self.desired_docs = docs
         self.desired_kws = kws
 

@@ -13,56 +13,56 @@ config_doc_kw_model()
 
 class HashableTest(unittest.TestCase):
     def test_ids_str(self):
-        kwset = Keyword.get_many(["redis", "a", "the"])
-        self.assertEqual("a,redis,the", kwset.ids_str)
+        kwlist = Keyword.get_many(["redis", "a", "the"])
+        self.assertEqual("a,redis,the", kwlist.ids_str)
         
-        docset = Document.get_many([2, 1, 3])
-        self.assertEqual("1,2,3", docset.ids_str)
+        doclist = Document.get_many([2, 1, 3])
+        self.assertEqual("1,2,3", doclist.ids_str)
         
     def test_equality_same_type(self):
-        kwset1 = Keyword.get_many(["redis", "a", "the"])
-        kwset2 = Keyword.get_many(["a", "the", "redis"])
-        kwset3 = Keyword.get_many(["a", "the", "python"])
+        kwlist1 = Keyword.get_many(["redis", "a", "the"])
+        kwlist2 = Keyword.get_many(["a", "the", "redis"])
+        kwlist3 = Keyword.get_many(["a", "the", "python"])
 
-        self.assertEqual(kwset1, kwset2)
-        self.assertNotEqual(kwset3, kwset2)
+        self.assertEqual(kwlist1, kwlist2)
+        self.assertNotEqual(kwlist3, kwlist2)
 
-        docset1 = Document.get_many([1,2,3])
-        docset2 = Document.get_many([2,3,1])
-        docset3 = Document.get_many([4,5,6])
+        doclist1 = Document.get_many([1,2,3])
+        doclist2 = Document.get_many([2,3,1])
+        doclist3 = Document.get_many([4,5,6])
 
-        self.assertEqual(docset1, docset2)
-        self.assertNotEqual(docset3, docset2)
+        self.assertEqual(doclist1, doclist2)
+        self.assertNotEqual(doclist3, doclist2)
         
     def test_equality_different_type(self):
-        kwset = Keyword.get_many(["redis", "a", "the"])
-        docset = Document.get_many([2, 1, 3])
+        kwlist = Keyword.get_many(["redis", "a", "the"])
+        doclist = Document.get_many([2, 1, 3])
         
-        self.assertNotEqual(kwset, docset)
+        self.assertNotEqual(kwlist, doclist)
         
     def test_kw_hashable(self):
         d = {}
-        kwset1 = Keyword.get_many(["redis", "a", "the"])
-        kwset2 = Keyword.get_many(["a", "the", "redis"])
-        kwset3 = Keyword.get_many(["redis", "a", "python"])
+        kwlist1 = Keyword.get_many(["redis", "a", "the"])
+        kwlist2 = Keyword.get_many(["a", "the", "redis"])
+        kwlist3 = Keyword.get_many(["redis", "a", "python"])
 
-        d[kwset1] = 1
-        d[kwset2] = 2 #override
-        d[kwset3] = 3 
+        d[kwlist1] = 1
+        d[kwlist2] = 2 #override
+        d[kwlist3] = 3 
 
-        self.assertEqual({kwset1:2, kwset3: 3}, d)
+        self.assertEqual({kwlist1:2, kwlist3: 3}, d)
 
     def test_doc_hashable(self):
         d = {}
-        docset1 = Document.get_many([1,2,3])
-        docset2 = Document.get_many([2,1,3])
-        docset3 = Document.get_many([4,5,6])
+        doclist1 = Document.get_many([1,2,3])
+        doclist2 = Document.get_many([2,1,3])
+        doclist3 = Document.get_many([4,5,6])
 
-        d[docset1] = 1
-        d[docset2] = 2 #override
-        d[docset3] = 3 
+        d[doclist1] = 1
+        d[doclist2] = 2 #override
+        d[doclist3] = 3 
 
-        self.assertEqual({docset1:2, docset3: 3}, d)
+        self.assertEqual({doclist1:2, doclist3: 3}, d)
         
         
 class SimilarityTest(NumericTestCase):
@@ -73,79 +73,79 @@ class SimilarityTest(NumericTestCase):
 
     def test_keyword_centroid(self):
         kw = Keyword.get("a")
-        kwset1 = KeywordList([kw])
+        kwlist1 = KeywordList([kw])
         
-        self.assertArrayAlmostEqual(matrix2array(kwset1.centroid), kw.vec.toarray()[0])
+        self.assertArrayAlmostEqual(matrix2array(kwlist1.centroid), kw.vec.toarray()[0])
 
         kw1 = Keyword.get("a")
         kw2 = Keyword.get("the")
         
-        kwset2 = Keyword.get_many(["a", "the"])
+        kwlist2 = Keyword.get_many(["a", "the"])
         
-        self.assertArrayAlmostEqual(matrix2array(kwset2.centroid), 
+        self.assertArrayAlmostEqual(matrix2array(kwlist2.centroid), 
                                     (kw1.vec.toarray()[0] + kw2.vec.toarray()[0]) / 2)
 
     def test_document_centroid(self):
         doc = Document.get(1)
-        docset1 = DocumentList([doc])
+        doclist1 = DocumentList([doc])
         
-        self.assertArrayAlmostEqual(matrix2array(docset1.centroid), doc.vec.toarray()[0])
+        self.assertArrayAlmostEqual(matrix2array(doclist1.centroid), doc.vec.toarray()[0])
 
         doc1 = Document.get(1)
         doc2 = Document.get(2)
         
-        docset2 = Document.get_many([1, 2])
+        doclist2 = Document.get_many([1, 2])
         
-        self.assertArrayAlmostEqual(matrix2array(docset2.centroid), 
+        self.assertArrayAlmostEqual(matrix2array(doclist2.centroid), 
                                     (doc1.vec.toarray()[0] + doc2.vec.toarray()[0]) / 2)        
 
     def test_model2modellist_similarity(self):
         #for keywords
         kw = Keyword.get("redis")
-        kwset = Keyword.get_many(["database", "mysql"])
+        kwlist = Keyword.get_many(["database", "mysql"])
 
-        self.assertAlmostEqual(0.3754029265429976, kw.similarity_to(kwset))
+        self.assertAlmostEqual(0.3754029265429976, kw.similarity_to(kwlist))
         
         #for documents
         doc = Document.get(6)
-        docset = Document.get_many([1, 2])
+        doclist = Document.get_many([1, 2])
         
-        self.assertAlmostEqual(0.7382455893131392, doc.similarity_to(docset))
+        self.assertAlmostEqual(0.7382455893131392, doc.similarity_to(doclist))
         
     def test_modellist2model_similarity(self):
         #for keywords
         kw = Keyword.get("redis")
-        kwset = Keyword.get_many(["database", "mysql"])
+        kwlist = Keyword.get_many(["database", "mysql"])
 
-        self.assertAlmostEqual(0.3754029265429976, kwset.similarity_to(kw))
-        self.assertAlmostEqual(kw.similarity_to(kwset), kwset.similarity_to(kw))
+        self.assertAlmostEqual(0.3754029265429976, kwlist.similarity_to(kw))
+        self.assertAlmostEqual(kw.similarity_to(kwlist), kwlist.similarity_to(kw))
 
         #for documents
         doc = Document.get(6)
-        docset = Document.get_many([1, 2])
+        doclist = Document.get_many([1, 2])
         
-        self.assertAlmostEqual(0.7382455893131392, docset.similarity_to(doc))
-        self.assertAlmostEqual(doc.similarity_to(docset), docset.similarity_to(doc))
+        self.assertAlmostEqual(0.7382455893131392, doclist.similarity_to(doc))
+        self.assertAlmostEqual(doc.similarity_to(doclist), doclist.similarity_to(doc))
 
     def test_modellist2modellist_similarity(self):
         #for keywords
-        kwset1 = Keyword.get_many(["redis", "a"])
-        kwset2 = Keyword.get_many(["database", "the"])
+        kwlist1 = Keyword.get_many(["redis", "a"])
+        kwlist2 = Keyword.get_many(["database", "the"])
 
-        self.assertAlmostEqual(0.42205423035497763, kwset1.similarity_to(kwset2))
+        self.assertAlmostEqual(0.42205423035497763, kwlist1.similarity_to(kwlist2))
         
         #for documents
-        docset1 = Document.get_many([3,5])
-        docset2 = Document.get_many([4,6])
+        doclist1 = Document.get_many([3,5])
+        doclist2 = Document.get_many([4,6])
         
-        self.assertAlmostEqual(0.6990609119502719, docset1.similarity_to(docset2))
+        self.assertAlmostEqual(0.6990609119502719, doclist1.similarity_to(doclist2))
         
     def test_type_mismatch(self):
         kw = Keyword.get("redis")
-        kwset = Keyword.get_many(["database", "mysql"])
+        kwlist = Keyword.get_many(["database", "mysql"])
 
         doc = Document.get(6)
-        docset = Document.get_many([1, 2])
+        doclist = Document.get_many([1, 2])
         
         #doc to kw
         self.assertRaises(AssertionError, kw.similarity_to, doc)
@@ -153,17 +153,14 @@ class SimilarityTest(NumericTestCase):
         #kw to doc
         self.assertRaises(AssertionError, doc.similarity_to, kw)
 
-        #kw to docset
-        self.assertRaises(AssertionError, kw.similarity_to, docset)
+        #kw to doclist
+        self.assertRaises(AssertionError, kw.similarity_to, doclist)
         
-        #docset to kw
-        self.assertRaises(AssertionError, docset.similarity_to, kw)
+        #doclist to kw
+        self.assertRaises(AssertionError, doclist.similarity_to, kw)
 
-        #doc to kwset
-        self.assertRaises(AssertionError, doc.similarity_to, kwset)
+        #doc to kwlist
+        self.assertRaises(AssertionError, doc.similarity_to, kwlist)
                 
-        #kwset to doc
-        self.assertRaises(AssertionError, kwset.similarity_to, doc)
-
-
-
+        #kwlist to doc
+        self.assertRaises(AssertionError, kwlist.similarity_to, doc)

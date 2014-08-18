@@ -4,7 +4,7 @@
 
 from util import (config_doc_kw_model, NumericTestCase)
 
-from scinet3.ir_eval import GoalBasedEvaluator
+from scinet3.util.ir_eval import GoalBasedEvaluator
 from scinet3.model import (Document, Keyword)
 
 

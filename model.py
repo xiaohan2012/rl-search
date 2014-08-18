@@ -18,7 +18,7 @@ import scinet3.modellist
 from scinet3.decorators import memoized
 from scinet3.data import FeatureMatrixAndIndexMapping as fmim
 from scinet3.fb_receiver import KeywordFeedbackReceiver, DocumentFeedbackReceiver
-from scinet3.numerical_util import cosine_similarity
+from scinet3.util.numerical import cosine_similarity
 
 class Model(dict):
     pass
@@ -58,7 +58,7 @@ class Document(DocumentFeedbackReceiver, Model):
         
         #if keywords are not parsed,  parse it
         if not isinstance(doc['keywords'], list):
-            kw_strs = json.loads(doc['keywords'])
+            kw_strs = filter(None, json.loads(doc['keywords'])) #filter out None values
             kws = [Keyword.get(kw_str) for kw_str in kw_strs]
             doc['keywords'] = kws
 
@@ -96,6 +96,8 @@ class Document(DocumentFeedbackReceiver, Model):
             cls.__ensure_configured()
             
             row = cls.db_conn.get("SELECT * from %s where id=%d" %(cls.table, doc_id))
+            if row is None:
+                raise ValueError("%d does not exist in the database" %doc_id)
             doc = cls.prepare_doc(row)
             cls.__all_docs_by_id[doc_id] = doc
             return doc
@@ -222,12 +224,25 @@ class Keyword(KeywordFeedbackReceiver, Model):
     
     @classmethod
     def get(cls, kw_str):
+        """
+        Get Keyword instance by `kw_str`
+
+        Param:
+        -----
+        kw_str: string, the keyword string
+        
+        Return:
+        ------
+        Keyword
+        """
         #if created, return
         #else, create it
         if cls.__all_kws_by_id.has_key(kw_str):
             return cls.__all_kws_by_id[kw_str]
         else:
             kw = Keyword(kw_str)
+            
+            #there should be some checking on the existence of keyword string
             cls.__all_kws_by_id[kw_str] = kw
 
             cls.all_kws.append(kw)

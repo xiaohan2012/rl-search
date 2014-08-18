@@ -2,8 +2,9 @@
 the linrel algorithm
 """
 import numpy as np
-from scipy.sparse import eye, csr_matrix
-from scipy.sparse.linalg import inv
+from numpy.linalg import inv
+
+from scipy.sparse import eye
 
 def linrel(y_t, D_t, D, mu, c):
     """
@@ -15,22 +16,18 @@ def linrel(y_t, D_t, D, mu, c):
     c: paramter c
 
     Return:
-    scores: csr sparse column vector containing the scores
+    scores: dense matrix
     exploration_scores: as the name implies
     exploitation_scores: as the name implies 
     """
     print "doing linrel.."
     feature_n = D_t.shape[1] #the feature number
-    a_t = D * inv(D_t.T * D_t + mu * eye(feature_n, feature_n)) * D_t.T 
     
-    #tricky way to do the power 2 operation
-    #http://stackoverflow.com/questions/6431557/element-wise-power-of-scipy-sparse-matrix
-    a_t_2powered = a_t.copy()
-
-    a_t_2powered.data **= 2
+    inter_M = (D_t.T * D_t + mu * eye(feature_n, feature_n)).todense()
+    a_t = D * inv(inter_M) * D_t.T 
     
     explt_scores = a_t * y_t
-    explr_scores = np.sqrt(np.array(a_t_2powered.sum(1))) * c / 2
+    explr_scores = np.sqrt(np.array(np.power(a_t, 2).sum(1))) * c / 2
     
     if hasattr(explt_scores, 'todense'): #if sparse, then to dense
         explt_scores = explt_scores.todense()

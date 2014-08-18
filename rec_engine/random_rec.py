@@ -30,7 +30,7 @@ class RandomRecommender(Recommender):
                 return random.sample(kws, n)
             except ValueError:#not enough keywords to sample
                 return kws | random.sample(all_kws - kws, n - len(kws))
-                
+
         return random.sample(all_kws, n)
 
     def recommend(self, kw_n = None, doc_n = None, assoc_kws_with_docs = None):

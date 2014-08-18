@@ -40,7 +40,8 @@ def get_all_keywords(db, table="brown", keyword_field_name = "processed_keywords
         for row in db.query("SELECT %s from %s;" %(keyword_field_name, table)):
             kws = loads(row[keyword_field_name])
             for kw in kws:
-                all_keywords.add(kw.lower())
+                if kw:
+                    all_keywords.add(kw)
         print len(all_keywords)
         dump(all_keywords, open(kw_path, 'w'))
         
@@ -113,8 +114,9 @@ def gen_kw_doc_matrix(docs, keywords, kw_field_name, doc_n = None, tfidf=True):
         keywords = doc[kw_field_name]
             
         for kw in keywords:
-            kw_ind = kw_ind_map[kw.lower()]
-            kw2doc_m[kw_ind, doc_ind] += 1
+            if kw:
+                kw_ind = kw_ind_map[kw]
+                kw2doc_m[kw_ind, doc_ind] += 1
 
     kw2doc_m = kw2doc_m.tocsr() #to Compressed Sparse Column format for faster row indexing and arithmatic operation    
     doc2kw_m = kw2doc_m.T #just transpose it

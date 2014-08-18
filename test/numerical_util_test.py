@@ -7,7 +7,7 @@ from scipy import (linalg, mat, dot)
 from scipy.sparse import csr_matrix
 
 from util import NumericTestCase
-from scinet3.numerical_util import (cosine_similarity, matrix2array)
+from scinet3.util.numerical import (cosine_similarity, matrix2array)
 
 
 class ConsineSimilarityTest(unittest.TestCase):

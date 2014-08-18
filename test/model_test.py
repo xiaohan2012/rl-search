@@ -47,6 +47,12 @@ class ModelTest(unittest.TestCase):
         self.assertTrue(type(kw._doc_weight) is DictType)
 
 
+    def test_get_nonexist(self):
+        """
+        Get non-exist object
+        """
+        self.assertRaises(ValueError, Document.get, -1)
+        
     def test_get_many(self):
         doc_ids = [1,2]
         kw_ids = ["a", "the"]

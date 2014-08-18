@@ -30,7 +30,6 @@ class LinRelTest(NumericTestCase):
         mu = 1
         c = .2
         y_t = csr_matrix([[.3], [.3], [.7]])
-
         scores, explr_scores, explt_scores = linrel(y_t, D_t, D, mu, c)
         
         self.assertArrayAlmostEqual([0.35511143,0.26666667,0.53700971,0.35511143,0.6451382,0.26666667,0.51974334],

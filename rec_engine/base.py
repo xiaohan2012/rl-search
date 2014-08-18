@@ -35,6 +35,6 @@ class Recommender(object):
             exclude_kws = set(exclude_kws)
             
         return list(set([kw
-                for doc in docs 
-                for kw in doc['keywords']
-                if kw not in exclude_kws]))
+                         for doc in docs 
+                         for kw in doc['keywords']
+                         if kw not in exclude_kws]))

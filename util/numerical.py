@@ -19,7 +19,7 @@ def cosine_similarity(vec1, vec2):
         vec2 = vec2.todense()
 
     vec1, vec2 = mat(vec1), mat(vec2)    
-
+    
     return (dot(vec1,vec2.T)/linalg.norm(vec1)/linalg.norm(vec2)).tolist()[0][0]
 
 

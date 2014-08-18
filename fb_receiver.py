@@ -30,7 +30,7 @@ class KeywordFeedbackReceiver(object):
     #########################
     # weighting parameter for fb from kw and doc
     #########################
-    alpha = 0.5
+    alpha = 0.7
 
     def __init__(self, *args, **kwargs):
         self._redis_key_fb_from_kw = (self.__class__._KEY_TMPL_FB_KW %self.id)
@@ -114,8 +114,11 @@ class KeywordFeedbackReceiver(object):
         if self.fb_from_kw(session) == 0: #no feedback from keyword itself
             return fb_from_doc_sum / doc_weight_sum
         else:
+            latter_part = (doc_weight_sum == 0 
+                           and 0 
+                           or fb_from_doc_sum / doc_weight_sum)
             return self.__class__.alpha * self.fb_from_kw(session) + \
-                (1 - self.__class__.alpha) * fb_from_doc_sum / doc_weight_sum
+                (1 - self.__class__.alpha) * latter_part
 
     ############################
     # This step shall be done 
@@ -222,6 +225,10 @@ class DocumentFeedbackReceiver(object):
         if self.fb_from_doc(session) == 0:
             return fb_from_kw_sum / sum(self._kw_weight.values())
         else:
+            kw_weight_sum = sum(self._kw_weight.values())
+            latter_part = (kw_weight_sum == 0 
+                           and 0
+                           or fb_from_kw_sum / kw_weight_sum)
             return self.__class__.alpha * self.fb_from_doc(session) + \
                 (1 - self.__class__.alpha) * fb_from_kw_sum / sum(self._kw_weight.values())
 

@@ -13,12 +13,14 @@ from scinet3.model import (Document, Keyword)
 from scinet3.fb_propagator import OnePassPropagator
 from scinet3.fb_updater import OverrideUpdater
 
-from scinet3.rec_engine.random_rec import RandomRecommender
+from scinet3.rec_engine.query import QueryBasedRecommender
 from scinet3.rec_engine.linrel import LinRelRecommender
 
 class CmdAppTest(unittest.TestCase):
     def setUp(self):
-        init_recommender = RandomRecommender(3, 3, True)
+        init_recommender = QueryBasedRecommender(3, 2, 
+                                                 3, 2, 
+                                                 **fmim_dict)
         main_recommender = LinRelRecommender(3, 3, 
                                              1., .5, 
                                              1., .5, 
@@ -57,15 +59,15 @@ class CmdAppTest(unittest.TestCase):
         self.assertAlmostEqual(0., kws[3].fb(self.session))
         
     def test_recommend_initial(self):
-        docs , kws = self.app.recommend(self.session, True)
+        docs , kws = self.app.recommend(start = True, query = "python, redis")
         self.assertEqual(3, len(docs))
-        self.assertEqual(3, len(kws))        
+        self.assertTrue(len(kws) >= 3) 
 
     def test_recommend_main(self):
         #receive the feedback first
         self.app.receive_feedbacks(self.session, self.fb)
         
-        docs , kws = self.app.recommend(self.session)
+        docs , kws = self.app.recommend(start = False, session = self.session)
         self.assertEqual(Document.get_many([1,2,6]), 
                          docs)
         self.assertEqual(Keyword.get_many(["redis", "database", "a", "python", "the"]), 
@@ -74,15 +76,15 @@ class CmdAppTest(unittest.TestCase):
 
     def test_recommend_together(self):
         #### Iter 1 ######
-        docs , kws = self.app.recommend(self.session, True)
+        docs , kws = self.app.recommend(start = True, query = "python, redis")
         self.assertEqual(3, len(docs))
-        self.assertEqual(3, len(kws))        
+        self.assertTrue(len(kws) >= 3)        
 
         #### Iter 2 ######
         # receive the feedback first
         self.app.receive_feedbacks(self.session, self.fb)
         
-        docs , kws = self.app.recommend(self.session)
+        docs , kws = self.app.recommend(start = False, session = self.session)
         self.assertEqual(Document.get_many([1,2,6]), 
                          docs)
         self.assertEqual(Keyword.get_many(["redis", "database", "a", "python", "the"]), 

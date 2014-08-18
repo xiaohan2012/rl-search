@@ -1,1 +1,4 @@
-python cmdapp.py --mysql_database=scinet3 --mysql_table=test --recom_kw_num=4 --recom_doc_num=4
+python cmdapp.py --mysql_database=archive  --mysql_table=archive_500 \
+    --recom_kw_num=10 --samp_kw_num_from_doc=6 \
+    --recom_doc_num=10 --samp_doc_num=4 \
+    --refresh_pickle=True

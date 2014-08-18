@@ -148,6 +148,7 @@ class LinRelRecommender(Recommender):
         for kw_id, score in id_with_scores.items()[:top_n]:
             kw = Keyword.get(kw_id)
             kw['score'] = score
+            kw['recommended'] = True
             kws.append(kw)
             
         # self.add_score_history("keywords", kw_ind_map_r, ind_with_scores, ind_with_explr_scores, ind_with_explt_scores)
