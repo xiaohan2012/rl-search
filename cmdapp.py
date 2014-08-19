@@ -8,6 +8,9 @@ import redis
 
 from scinet3.model import (Document, Keyword)
 
+################
+# Mysql, Redis config
+#################
 define("port", default=8000, help="run on the given port", type=int)
 define("mysql_port", default=3306, help="db's port", type=int)
 define("mysql_host", default="ugluk", help="db database host")
@@ -21,23 +24,46 @@ define("redis_host", default="ugluk", help="key-value cache host")
 define("redis_db", default="scinet3", help="key-value db")
 
 define("mysql_table", default='john', help="db table to be used")
+
+##############################
+# Use pickle will be faster
+##############################
 define("refresh_pickle", default=False, help="refresh pickle or not")
 
+##############################
+# How many doc/kw to recommend
+###############################
 define("recom_kw_num", default=5, help="recommended keyword number at each iter")
 define("recom_doc_num", default=10, help="recommended document number at each iter")
 define("samp_kw_num_from_doc", default=5, help="sampled keyword number from documents")
 define("samp_doc_num", default=5, help="extra document number apart from the recommended ones")
 
-define("linrel_kw_mu", default=1., help="Value for \mu in the linrel algorithm for keyword")
-define("linrel_kw_c", default=0.2, help="Value for c in the linrel algorithm for keyword")
-define("linrel_doc_mu", default=1., help="Value for \mu in the linrel algorithm for document")
-define("linrel_doc_c", default=0.2, help="Value for c in the linrel algorithm for document")
+##############################
+# Sampling/filtering(to be use before LinRel for dimension reduction)
+##############################
+define("kw_filters", default="kw_fb_filter, kw_fb_from_docs_filter", help="The names of samplers to use, separated by comma")
+define("doc_filters", default="doc_fb_filter, doc_fb_from_kws_filter", help="The names of filters to use, separated by comma")
+define("kw_samplers", default=None, help="The names of samplers to use, separated by comma")
+define("doc_samplers", default=None, help="The names of samplers to use, separated by comma")
 
 define("kw_fb_threshold", default=0.01, help="The feedback threshold used when filtering keywords")
 define("kw_fb_from_docs_threshold", default=0.01, help="The feedback(from documents) threshold used when filtering keywords")
 define("doc_fb_threshold", default=0.01, help="The feedback threshold used when filtering documents")
 define("doc_fb_from_kws_threshold", default=0.01, help="The feedback(from keywords) threshold used when filtering documents")
 
+
+##############################
+# LinRel parameters
+##############################
+define("linrel_kw_mu", default=1., help="Value for \mu in the linrel algorithm for keyword")
+define("linrel_kw_c", default=0.2, help="Value for c in the linrel algorithm for keyword")
+define("linrel_doc_mu", default=1., help="Value for \mu in the linrel algorithm for document")
+define("linrel_doc_c", default=0.2, help="Value for c in the linrel algorithm for document")
+
+
+##############################
+# Feedback propagation parameter
+##############################
 define("kw_alpha", default=0.7, help="The weight value used for keyword feedback summarization")
 define("doc_alpha", default=0.7, help="The weight value used for document feedback summarization")
 
@@ -195,20 +221,24 @@ def main(desired_doc, desired_kw, session):
     }
 
     ######################
-    # Filter creation
+    # Filter initialization
     ######################
-    from scinet3.filters import make_threshold_filter
+    from scinet3.filters import FilterRepository
+    FilterRepository.init(session = session, 
+                          kw_fb_threshold = options.kw_fb_threshold, 
+                          kw_fb_from_docs_threshold = options.kw_fb_from_docs_threshold, 
+                          doc_fb_threshold = options.doc_fb_threshold,
+                          doc_fb_from_kws_threshold = options.doc_fb_from_kws_threshold)
     
-    kw_fb_filter = make_threshold_filter(lambda o: o.fb(session), options.kw_fb_threshold)
-    fb_from_docs_filter = make_threshold_filter(lambda o: o.fb_from_kws(session), options.kw_fb_from_docs_threshold)
-    
-    doc_fb_filter = make_threshold_filter(lambda o: o.fb(session), options.doc_fb_threshold)
-    fb_from_kws_filter = make_threshold_filter(lambda o: o.fb_from_docs(session), options.doc_fb_from_kws_threshold)    
+    kw_filters = FilterRepository.get_filters_from_str(options.kw_filters)
+    doc_filters = FilterRepository.get_filters_from_str(options.doc_filters)
 
-    # this part should be configurable 
-    # so that different filters can be passed
-    kw_filters = [kw_fb_filter, fb_from_docs_filter]
-    doc_filters = [doc_fb_filter, fb_from_kws_filter]
+    ######################
+    # Sampler initialization
+    ######################
+    from scinet3.samplers import get_samplers_from_str
+    kw_samplers = get_samplers_from_str(options.kw_samplers)
+    doc_samplers = get_samplers_from_str(options.doc_samplers)
 
     ########################
     # Recommender initialization
@@ -269,12 +299,8 @@ def main(desired_doc, desired_kw, session):
         else:
             feedback = app.interact_with_user(docs, kws_to_be_displayed)
         
-                    
         app.receive_feedbacks(session, feedback)
 
-        # action_tracker.record_feedback(feedback)
-        # action_tracker.record_recommendation(docs, keywords)
-        
 if __name__ == "__main__":    
     tornado.options.parse_command_line()
     
@@ -310,8 +336,6 @@ if __name__ == "__main__":
     
     desired_kws = Keyword.get_many(["Artificial neural network", "Neuron", \
                                     "Computational neuroscience", "Biological neural network"])
-
     
     with evaluation_manager(desired_docs, desired_kws, session):
         main(desired_docs, desired_kws, session)
-

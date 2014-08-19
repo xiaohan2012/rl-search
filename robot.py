@@ -13,14 +13,14 @@ class Robot(object):
     """
     def give_feedback(self, docs, kws, doc_n=1, kw_n=1):
         raise NotImplementedError
-
+        
 
 class NearSightedRobot(object):
     """
     Robot that are near sighted. 
     It chooses the docs/kws that are most similar to the goal
     """
-    def __init__(self, initial_query):
+    def __init__(self, initial_query = None):
         self.initial_query = initial_query
         
         #keeping track of what has been selected

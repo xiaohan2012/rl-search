@@ -92,7 +92,14 @@ class KeywordFeedbackReceiver(object):
         assert (self == kw), self.__class__._KW_ERR_MSG
 
         session.set(self._redis_key_fb_from_kw, fb)
-            
+
+    def fb_from_doc_sum(self, session):
+        """
+        weighted sum of feedback from documents(0-1)
+        """
+        return sum([self._doc_weight[doc] * fb
+             for doc, fb in self.fb_from_doc(session).items()])
+
     def fb_weighted_sum(self, session):
         """
         Get the feedback received for the **current** loop
@@ -106,17 +113,16 @@ class KeywordFeedbackReceiver(object):
                            if doc in session.last_recom_docs] #those appeared in last_recom_docs
 
         doc_weight_sum = sum([self._doc_weight[doc] 
-                              for doc in considered_docs])
+                              for doc in considered_docs])        
         
-        fb_from_doc_sum = sum([self._doc_weight[doc] * fb
-                               for doc, fb in self.fb_from_doc(session).items()])
+        fb_from_doc_sum = self.fb_from_doc_sum(session)
         
         if self.fb_from_kw(session) == 0: #no feedback from keyword itself
             return fb_from_doc_sum / doc_weight_sum
         else:
-            latter_part = (doc_weight_sum == 0 
-                           and 0 
-                           or fb_from_doc_sum / doc_weight_sum)
+            latter_part = (0 \
+                          if doc_weight_sum == 0 \
+                          else fb_from_doc_sum / doc_weight_sum)
             return self.__class__.alpha * self.fb_from_kw(session) + \
                 (1 - self.__class__.alpha) * latter_part
 
@@ -211,7 +217,14 @@ class DocumentFeedbackReceiver(object):
         assert (kw in self.keywords), self.__class__._KW_ERR_MSG
 
         session.hmset(self._redis_key_fb_from_kw, {kw.id: fb})
-            
+
+    def fb_from_kw_sum(self, session):
+        """
+        weighted sum of feedback from keywords(0-1)
+        """
+        return sum([self._kw_weight[kw] * fb
+                    for kw, fb in self.fb_from_kw(session).items()])            
+
     def fb_weighted_sum(self, session):
         """
         Get the feedback received for the **current** loop
@@ -220,15 +233,15 @@ class DocumentFeedbackReceiver(object):
         1. this feedback value is not the same as the feedback received along the way
         2. if there are no feedbacks from the document itself, then alpha value is set to 0
         """
-        fb_from_kw_sum = sum([self._kw_weight[kw] * fb
-                              for kw, fb in self.fb_from_kw(session).items()])
+        fb_from_kw_sum = self.fb_from_kw_sum(session)
+        
         if self.fb_from_doc(session) == 0:
             return fb_from_kw_sum / sum(self._kw_weight.values())
         else:
             kw_weight_sum = sum(self._kw_weight.values())
-            latter_part = (kw_weight_sum == 0 
-                           and 0
-                           or fb_from_kw_sum / kw_weight_sum)
+            latter_part = (0 \
+                           if kw_weight_sum == 0 \
+                           else fb_from_kw_sum / kw_weight_sum)
             return self.__class__.alpha * self.fb_from_doc(session) + \
                 (1 - self.__class__.alpha) * fb_from_kw_sum / sum(self._kw_weight.values())
 

@@ -113,7 +113,8 @@ class QueryRecommenderTest(NumericTestCase):
         query = "python, redis"
         docs, kws = self.r.recommend(query)
         
-        self.assertEqual(Document.get_many([6,2,1,8]), docs)
+        self.assertEqual(Document.get(6), docs[0])
+        self.assertEqual(4, len(docs))
         
         #kws should be superset of assoc_kws
         assoc_kws = set([kw 
