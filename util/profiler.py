@@ -2,7 +2,7 @@ from contextlib import contextmanager
 import cProfile, pstats, StringIO
 
 @contextmanager
-def profile_manager():
+def profiler_manager():
     pr = cProfile.Profile()
     pr.enable()
 

@@ -41,15 +41,13 @@ define("samp_doc_num", default=5, help="extra document number apart from the rec
 ##############################
 # Sampling/filtering(to be use before LinRel for dimension reduction)
 ##############################
-define("kw_filters", default="kw_fb_filter, kw_fb_from_docs_filter", help="The names of samplers to use, separated by comma")
-define("doc_filters", default="doc_fb_filter, doc_fb_from_kws_filter", help="The names of filters to use, separated by comma")
+define("kw_filters", default="kw_fb_filter", help="The names of samplers to use, separated by comma")
+define("doc_filters", default="doc_fb_filter", help="The names of filters to use, separated by comma")
 define("kw_samplers", default=None, help="The names of samplers to use, separated by comma")
 define("doc_samplers", default=None, help="The names of samplers to use, separated by comma")
 
-define("kw_fb_threshold", default=0.01, help="The feedback threshold used when filtering keywords")
-define("kw_fb_from_docs_threshold", default=0.01, help="The feedback(from documents) threshold used when filtering keywords")
-define("doc_fb_threshold", default=0.01, help="The feedback threshold used when filtering documents")
-define("doc_fb_from_kws_threshold", default=0.01, help="The feedback(from keywords) threshold used when filtering documents")
+define("kw_fb_threshold", default=0.01, help="The feedback threshold used for `kw_fb_filter`")
+define("doc_fb_threshold", default=0.01, help="The feedback threshold used for `doc_fb_filter`")
 
 
 ##############################
@@ -226,19 +224,19 @@ def main(desired_doc, desired_kw, session):
     from scinet3.filters import FilterRepository
     FilterRepository.init(session = session, 
                           kw_fb_threshold = options.kw_fb_threshold, 
-                          kw_fb_from_docs_threshold = options.kw_fb_from_docs_threshold, 
-                          doc_fb_threshold = options.doc_fb_threshold,
-                          doc_fb_from_kws_threshold = options.doc_fb_from_kws_threshold)
+                          doc_fb_threshold = options.doc_fb_threshold)
+
     
+    print type(options.kw_filters), options.kw_filters
     kw_filters = FilterRepository.get_filters_from_str(options.kw_filters)
     doc_filters = FilterRepository.get_filters_from_str(options.doc_filters)
 
     ######################
     # Sampler initialization
     ######################
-    from scinet3.samplers import get_samplers_from_str
-    kw_samplers = get_samplers_from_str(options.kw_samplers)
-    doc_samplers = get_samplers_from_str(options.doc_samplers)
+    from scinet3.samplers import SamplerRepository
+    kw_samplers = SamplerRepository.get_samplers_from_str(options.kw_samplers)
+    doc_samplers = SamplerRepository.get_samplers_from_str(options.doc_samplers)
 
     ########################
     # Recommender initialization
@@ -254,7 +252,8 @@ def main(desired_doc, desired_kw, session):
     main_recommender = LinRelRecommender(options.recom_kw_num, options.recom_doc_num, 
                                          options.linrel_kw_mu, options.linrel_kw_c, 
                                          options.linrel_doc_mu, options.linrel_doc_c, 
-                                         None, None,
+                                         kw_filters = kw_filters, doc_filters = doc_filters,
+                                         kw_samplers = kw_samplers, doc_samplers = doc_samplers,
                                          **fmim_dict)
 
     ######################
@@ -274,7 +273,9 @@ def main(desired_doc, desired_kw, session):
     
     while True: 
         iter_n += 1
-        print "At iteration %d" %iter_n
+        if iter_n > MAX_ITER:
+                break
+        print "At iteration %d / %d" %(iter_n, MAX_ITER)
                         
         if just_started:
             docs, kws = app.recommend(start = just_started, query = robot.initial_query)
@@ -288,13 +289,9 @@ def main(desired_doc, desired_kw, session):
         
         #session records recommendation
         session.add_doc_recom_list(docs)
-        session.add_kw_recom_list(kws)
+        session.add_kw_recom_list(kws_to_be_displayed)
         
-        if AUTO_INTERACT:#if robot is asked to come into stage
-            print "%d / %d" %(iter_n, MAX_ITER)
-            if iter_n > MAX_ITER:
-                break
-            
+        if AUTO_INTERACT:#if robot is asked to come into stage            
             feedback = robot.give_feedback(docs, kws_to_be_displayed)
         else:
             feedback = app.interact_with_user(docs, kws_to_be_displayed)
@@ -304,7 +301,7 @@ def main(desired_doc, desired_kw, session):
 if __name__ == "__main__":    
     tornado.options.parse_command_line()
     
-    from scinet3.util.profiler import profile_manager
+    from scinet3.util.profiler import profiler_manager
     from scinet3.util.ir_eval import evaluation_manager
 
     ######################
@@ -337,5 +334,7 @@ if __name__ == "__main__":
     desired_kws = Keyword.get_many(["Artificial neural network", "Neuron", \
                                     "Computational neuroscience", "Biological neural network"])
     
+    
     with evaluation_manager(desired_docs, desired_kws, session):
-        main(desired_docs, desired_kws, session)
+        with profiler_manager():
+            main(desired_docs, desired_kws, session)

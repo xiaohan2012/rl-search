@@ -6,6 +6,8 @@ from contextlib import contextmanager
 
 from scinet3.modellist import (DocumentList, KeywordList)
 
+from collections import Counter
+
 @contextmanager
 def evaluation_manager(desired_docs, desired_kws, session):
     evaluator = GoalBasedEvaluator()
@@ -23,8 +25,27 @@ def evaluation_manager(desired_docs, desired_kws, session):
     print "for kws:"
     print eval_results[1]
 
-    
 
+    displayed_docs = set([doc 
+                          for doc_list in session.recom_docs 
+                          for doc in doc_list])
+    
+    target_doc_occurrences = filter(lambda doc: doc in evaluator.desired_docs, 
+                                    displayed_docs)
+    
+    print "%d / %d precision" %(len(target_doc_occurrences), len(displayed_docs))
+    print "%d / %d recall" %(len(target_doc_occurrences), len(evaluator.desired_docs))
+
+    displayed_kws = set([kw 
+                         for kw_list in session.recom_kws 
+                         for kw in kw_list])
+    print displayed_kws
+    
+    target_kw_occurrences = filter(lambda kw: kw in evaluator.desired_kws, 
+                                    displayed_kws)
+    
+    print "%d / %d precision" %(len(target_kw_occurrences), len(displayed_kws))
+    print "%d / %d recall" %(len(target_kw_occurrences), len(evaluator.desired_kws))
 
 class GoalBasedEvaluator(object):
     """

@@ -1,7 +1,7 @@
 MYSQL_PWD = "xh24206688"
-MYSQL_DB = "scinet3"
+MYSQL_DB = "archive"
 MYSQL_USER = "hxiao"
-MYSQL_HOST = "193.167.138.8"
+MYSQL_HOST = "ugluk"
 MYSQL_CONN_SETTING = {'host': MYSQL_HOST,
                       'user':MYSQL_USER,
                       'passwd':MYSQL_PWD,

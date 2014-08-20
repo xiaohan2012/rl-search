@@ -219,7 +219,8 @@ class LinRelRecommender(Recommender):
 
     def __init__(self, recom_kw_num, recom_doc_num,  #recommendation number
                  linrel_kw_mu, linrel_kw_c, linrel_doc_mu, linrel_doc_c, #linrel parameters
-                 kw_filters, doc_filters, #filters
+                 kw_filters = None, doc_filters = None, #filters
+                 kw_samplers = None, doc_samplers = None, #samplers
                  *args, **kwargs):
         """
         Params:
@@ -252,9 +253,12 @@ class LinRelRecommender(Recommender):
 
         self.linrel_doc_mu = linrel_doc_mu
         self.linrel_doc_c = linrel_doc_c
-
+        
         self.kw_filters = kw_filters
         self.doc_filters = doc_filters
+
+        self.kw_samplers = kw_samplers
+        self.doc_samplers = doc_samplers
         
         super(LinRelRecommender, self).__init__(*args, **kwargs)
         

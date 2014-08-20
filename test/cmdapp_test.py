@@ -25,6 +25,7 @@ class CmdAppTest(unittest.TestCase):
                                              1., .5, 
                                              1., .5, 
                                              None,None,
+                                             None,None,
                                              **fmim_dict)
 
         self.app = CmdApp(OnePassPropagator, OverrideUpdater, 

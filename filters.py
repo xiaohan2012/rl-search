@@ -11,9 +11,7 @@ from tornado.options import options
 class FilterRepository(object):
     __all__ = ["get", 
                "kw_fb_filter", 
-               "fb_from_docs_filter", 
-               "doc_fb_filter", 
-               "fb_from_kws_filter"]
+               "doc_fb_filter"]
     
     @classmethod
     def make_threshold_filter(cls, value_getter, threshold, above = True):
@@ -44,13 +42,16 @@ class FilterRepository(object):
         kw_fb_threshold = kwargs.get("kw_fb_threshold")
         doc_fb_threshold = kwargs.get("doc_fb_threshold")
         
+        def fb_getter(o):
+            fb = o.fb(session)
+            return fb
+
         # creating the actual filters
         cls.filters = {
-            "kw_fb_filter": cls.make_threshold_filter(lambda o: o.fb(session), kw_fb_threshold),
-            "doc_fb_filter": cls.make_threshold_filter(lambda o: o.fb(session), doc_fb_threshold),
+            "kw_fb_filter": cls.make_threshold_filter(fb_getter, kw_fb_threshold),
+            "doc_fb_filter": cls.make_threshold_filter(fb_getter, doc_fb_threshold),
         }
-        
-    
+            
     @classmethod
     def get(cls, filter_id):
         try:
@@ -71,11 +72,11 @@ class FilterRepository(object):
         ---------
         list of functions:
         """
-        if s is None:
+        if not s:
             return None
         else:
             filter_ids = map(lambda id_str: id_str.strip(), 
                              s.split(","))
             
-            return [FilterRepository.get(filter_id) 
+            return [cls.get(filter_id) 
                     for filter_id in filter_ids]

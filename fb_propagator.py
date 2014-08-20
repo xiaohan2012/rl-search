@@ -60,16 +60,13 @@ class OnePassPropagator(FeedbackPropagator):
         #from kw to kw itself
         kw.rec_fb_from_kw(kw, fb_numer, session)
         
-        #from keywords to associated docs(for the current session)
-        kw_docs = filter(lambda doc: kw in doc.keywords, 
-                         session.last_recom_docs)
-        
-        for doc in kw_docs:
+        #from keywords to associated docs
+        for doc in kw.docs:
             doc.rec_fb_from_kw(kw, fb_numer, session)
 
         #those objects' feedback shall be updated
         session.add_affected_kws(kw)
-        session.add_affected_docs(*kw_docs)
+        session.add_affected_docs(*kw.docs)
         
     @classmethod
     def fb_from_dockw(cls, kw, doc, fb_numer, session):
