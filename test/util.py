@@ -24,11 +24,11 @@ def config_doc_kw_model(doc_alpha = 0.7, kw_alpha = .7):
     conn = get_db_conn()
     table = 'test'    
     
-    fmim_dict = load_fmim(conn, table, keyword_field_name = 'keywords').__dict__
+    fmim = load_fmim(conn, table, keyword_field_name = 'keywords')
     
-    config_model(conn, table, fmim_dict, doc_alpha, kw_alpha)
+    config_model(conn, table, fmim.__dict__, doc_alpha, kw_alpha)
 
-    return conn, fmim_dict
+    return conn, fmim
 
 def get_session():
     

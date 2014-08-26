@@ -52,7 +52,7 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
             self.session_id = session_id
         
     def generate_session_id(self):
-        return str(uuid.uuid1())
+        return str(uuid.uuid1()) # might be duplicated
     
     @property
     def data(self):
@@ -389,40 +389,3 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
         
     def delete(self, key):
         self.redis.delete('session:%s:%s' %(self.session_id, key))
-
-def test():
-    import  redis
-    conn = redis.StrictRedis(host='ugluk', port='6379', db='test')
-    s = RedisRecommendationSessionHandler.get_session(conn)
-    s.kw_ids = ['kw1', 'kw2']
-    print s.kw_ids
-    s.kw_ids = ['kw2', 'kw3']
-    print s.kw_ids
-
-    s.doc_ids = [1, 2]
-    print s.doc_ids
-    s.doc_ids = [3, 2]
-    print s.doc_ids
-    
-
-    s.kw_feedbacks = {'kw1': .7, 'kw2': .5}
-    print s.kw_feedbacks
-    s.kw_feedbacks = {'kw3': .9, 'kw2': .6}
-    print s.kw_feedbacks
-    
-    s.kw_score_hist = {'kw1': 0.5, 'kw2': 0.4}
-    print s.kw_score_hist
-    s.kw_score_hist = {'kw1': 0.7, 'kw2': 0.3}
-    print s.kw_score_hist
-
-    s.kw_explr_score_hist = {'kw1': 0.3, 'kw2': 0.2}
-    print s.kw_explr_score_hist
-    s.kw_explr_score_hist = {'kw1': 0.4, 'kw2': 0.1}
-    print s.kw_explr_score_hist
-
-    s.kw_explt_score_hist = {'kw1': 0.2, 'kw2': 0.2}
-    print s.kw_explt_score_hist
-    s.kw_explt_score_hist = {'kw1': 0.3, 'kw2': 0.2}
-    print s.kw_explt_score_hist
-if __name__ == "__main__":
-    test()

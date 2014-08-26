@@ -5,6 +5,7 @@ from numpy import matrix
 from collections import OrderedDict
 from types import IntType, FloatType
 
+from scinet3.data import FeatureMatrixAndIndexMapping
 from scinet3.model import (Document, Keyword)
 from scinet3.modellist import (DocumentList, KeywordList)
 
@@ -83,24 +84,43 @@ class LinRelRecommender(Recommender):
             
         return list(sel_objs)
         
-    def _submatrix_and_indexing(self, objs, obj_feature_matrix, obj2ind_map):
+    def _submatrix_and_indexing(self, row_objs, col_objs, obj_feature_matrix, row_obj2ind_map, col_obj2ind_map):
         """
+        Return the submatrix and associated index mapping
+        
+        ----------------------
+        |                    | 
+        |     -------------  |
+        |     |  we want  |  |
+        |     |   this    |  |
+        |     -------------  |
+        |                    |
+        |                    |
+        |                    |
+        ----------------------
+        
         Params:
-        objs: list of integer, the ids of objects to be included in the submatrix
+        row_objs: list of Model, the ids of the row objects to be included in the submatrix
+        col_objs: list of Model, the ids of the column objects to be included in the submatrix
         obj_feature_matrix: matrix,  the feature matrix for the whole dataset
-        obj2ind_map: dict of (integer, integer), the object-to-matrix-index mapping
+        row_obj2ind_map: dict of (integer, integer), the row-object-to-matrix-index mapping
+        row_ind2obj_map: dict of (integer, integer), the reserse mapping the above one
         
         Return:
         - the feature matrix concerning only the objects
         - the object to matrix index mapping
         - the inverse index to object mapping
         """
-        obj_indx = [obj2ind_map[obj] for obj in objs]
+        row_obj_indx = [row_obj2ind_map[obj.id] for obj in row_objs]
+        col_obj_indx = [col_obj2ind_map[obj.id] for obj in col_objs]
         
-        #get the sub matrix
-        submatrix = obj_feature_matrix[obj_indx, :]
-        obj2ind_submap = dict([(obj, ind) for obj, ind in zip(objs, xrange(len(objs)))])
-        ind2obj_submap = dict([(ind, obj) for obj, ind in zip(objs, xrange(len(objs)))])
+        # get the sub matrix
+        # the following way of submatrix slicing is from:
+        # http://stackoverflow.com/questions/21060995/submatrix-in-scipy
+        submatrix = obj_feature_matrix.tocsr()[row_obj_indx, :].tocsc()[:, col_obj_indx]
+        
+        obj2ind_submap = dict([(obj.id, ind) for obj, ind in zip(row_objs, xrange(len(row_objs)))])
+        ind2obj_submap = dict([(ind, obj.id) for obj, ind in zip(row_objs, xrange(len(row_objs)))])
 
         return submatrix, obj2ind_submap, ind2obj_submap
 
@@ -120,29 +140,24 @@ class LinRelRecommender(Recommender):
         else:
             raise 
         
-    def recommend_keywords(self, session, top_n, mu, c, filters=None, sampler=None):
+    def recommend_keywords(self, fmim,
+                           session, top_n, mu, c, 
+                           sampler=None):
         """
-        filters: a list of filtering function applied to the keywords before doing the LinRel computation, a keyword satisfying any of the filters will be considered candidate.
+        fmim: FeatureMatrixAndIndexMapping, the fmim for the sub-matrix        
+        session: Session,
+        top_n: how many kws are returned
+        mu,c: float, the parameters for LinRel algorithm
         
-        return a list of keyword ids as well as their scores
+        Return
+        KeywordList: a list of keyword ids as well as their scores
         """        
-        # do some filtering and form the corresponding sub matrix
-        if filters:
-            filtered_kws = self._filter_objs(Keyword.all_kws, filters); 
-        else: # no filter is invovled
-            filtered_kws = Keyword.all_kws
-            
-        filtered_kw_ids = [kw.id for kw in filtered_kws]
+        kws = Keyword.get_many(fmim.kw_ind.keys())
+        fbs = dict([(kw.id, kw.fb(session)) for kw in kws])
         
-        kw2doc_submat, kw_ind_map, kw_ind_map_r = self._submatrix_and_indexing(filtered_kw_ids, self.kw2doc_m, self.kw_ind)
-        fbs = dict([(kw.id, kw.fb(session)) for kw in filtered_kws])
-        
-        if sampler:
-            pass# do some sampling here
-
-        id_with_scores, id_with_explt_scores, id_with_explr_scores = self.generic_rank(kw2doc_submat, fbs, 
-                                                                                       kw_ind_map, kw_ind_map_r,
-                                                                                       mu, c)             
+        id_with_scores, id_with_explt_scores, id_with_explr_scores = self.generic_rank(fmim.kw2doc_m, fbs, 
+                                                                                       fmim.kw_ind, fmim.kw_ind_r,
+                                                                                       mu, c)
         
         kws = []
         for kw_id, score in id_with_scores.items()[:top_n]:
@@ -151,40 +166,26 @@ class LinRelRecommender(Recommender):
             kw['recommended'] = True
             kws.append(kw)
             
-        # self.add_score_history("keywords", kw_ind_map_r, ind_with_scores, ind_with_explr_scores, ind_with_explt_scores)
-        
         return kws
         
-    def recommend_documents(self, session, top_n, mu, c, filters = None, sampler = None):
+    def recommend_documents(self, fmim,
+                            session, top_n, mu, c, 
+                            sampler = None):
         """
         return a list of document ids as well as the scores
         """
-
-        #do some filtering and form the corresponding sub matrix
-        if filters:
-            filtered_docs = self._filter_objs(Document.all_docs, filters); 
-        else:
-            filtered_docs = Document.all_docs
-        filtered_doc_ids = [doc.id for doc in filtered_docs]
-        fbs = dict([(doc.id, doc.fb(session)) for doc in filtered_docs])
+        docs = Document.get_many(fmim.doc_ind.keys())
+        fbs = dict([(doc.id, doc.fb(session)) for doc in docs])
         
-        doc2kw_submat, doc_ind_map, doc_ind_map_r = self._submatrix_and_indexing(filtered_doc_ids, self.doc2kw_m, self.doc_ind)
-        
-
-        if sampler:
-            pass#do some sampling here
-
-        id_with_scores, id_with_explt_scores, id_with_explr_scores = self.generic_rank(doc2kw_submat, fbs, 
-                                                                                       doc_ind_map,doc_ind_map_r,
+        id_with_scores, id_with_explt_scores, id_with_explr_scores = self.generic_rank(fmim.doc2kw_m, fbs, 
+                                                                                       fmim.doc_ind,fmim.doc_ind_r,
                                                                                        mu, c)
         docs = []
         for doc_id, score in id_with_scores.items()[:top_n]:
             doc = Document.get(doc_id)
             doc["score"] = score
-
+            doc['recommended'] = True
             docs.append(doc)
-        
-        # self.add_score_history("documents", doc_ind_map_r, ind_with_scores, ind_with_explr_scores, ind_with_explt_scores)
 
         return docs
         
@@ -204,15 +205,39 @@ class LinRelRecommender(Recommender):
         Return:
         (list of Document, list of Keyword)
         """                
-        
-        rec_kws = self.recommend_keywords(session, recom_kw_num or self.recom_kw_num, 
-                                          linrel_kw_mu or self.linrel_kw_mu, linrel_kw_c or self.linrel_kw_c, 
-                                          filters = kw_filters or self.kw_filters)
+        # do some filtering and 
+        #get the sub matrix as well as mapping
+        if kw_filters:
+            filtered_kws = self._filter_objs(Keyword.all_kws, kw_filters)
+            print "%d / %d keywords" %(len(filtered_kws), len(Keyword.all_kws))
             
-        rec_docs = self.recommend_documents(session, recom_doc_num or self.recom_doc_num, 
-                                            linrel_doc_mu or self.linrel_doc_mu, linrel_doc_c or self.linrel_doc_c,
-                                            filters = doc_filters or self.doc_filters)
+        else: # no filter is invovled
+            print "no keyword filter is used"
+            filtered_kws = Keyword.all_kws
 
+        if doc_filters:
+            filtered_docs = self._filter_objs(Document.all_docs, doc_filters)
+            print "%d / %d keywords" %(len(filtered_docs), len(Document.all_docs))
+        else: # no filter is invovled
+            print "no document filter is used"
+            filtered_docs = Document.all_docs
+        
+        
+        kw2doc_submat, kw_ind_map, kw_ind_map_r = self._submatrix_and_indexing(filtered_kws, filtered_docs, self.kw2doc_m, self.kw_ind, self.doc_ind)
+        doc2kw_submat, doc_ind_map, doc_ind_map_r = self._submatrix_and_indexing(filtered_docs, filtered_kws, self.doc2kw_m, self.doc_ind, self.kw_ind)
+        
+        fmim = FeatureMatrixAndIndexMapping(kw_ind_map, doc_ind_map, kw2doc_submat, doc2kw_submat, kw_ind_map_r, doc_ind_map_r)
+        
+        #do the recommendation
+        rec_kws = self.recommend_keywords(fmim,
+                                          session, recom_kw_num or self.recom_kw_num, 
+                                          linrel_kw_mu or self.linrel_kw_mu, linrel_kw_c or self.linrel_kw_c)
+        
+        rec_docs = self.recommend_documents(fmim,
+                                            session, recom_doc_num or self.recom_doc_num, 
+                                            linrel_doc_mu or self.linrel_doc_mu, linrel_doc_c or self.linrel_doc_c)
+        
+        #get the associated keywords
         assoc_kws = self.associated_keywords_from_docs(rec_docs, rec_kws)
         
         return DocumentList(rec_docs), KeywordList(rec_kws + assoc_kws)

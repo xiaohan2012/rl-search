@@ -5,7 +5,7 @@ import unittest, random
 
 from util import (config_doc_kw_model, get_session)
 
-_, fmim_dict = config_doc_kw_model()
+_, fmim = config_doc_kw_model()
 
 from scinet3.cmdapp import CmdApp
 from scinet3.model import (Document, Keyword)
@@ -20,13 +20,13 @@ class CmdAppTest(unittest.TestCase):
     def setUp(self):
         init_recommender = QueryBasedRecommender(3, 2, 
                                                  3, 2, 
-                                                 **fmim_dict)
+                                                 **fmim.__dict__)
         main_recommender = LinRelRecommender(3, 3, 
                                              1., .5, 
                                              1., .5, 
                                              None,None,
                                              None,None,
-                                             **fmim_dict)
+                                             **fmim.__dict__)
 
         self.app = CmdApp(OnePassPropagator, OverrideUpdater, 
                           init_recommender, main_recommender)        

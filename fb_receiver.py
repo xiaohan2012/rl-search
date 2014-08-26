@@ -113,7 +113,7 @@ class KeywordFeedbackReceiver(object):
                            if doc in session.last_recom_docs] #those appeared in last_recom_docs
 
         doc_weight_sum = sum([self._doc_weight[doc] 
-                              for doc in considered_docs])        
+                              for doc in considered_docs])
         
         fb_from_doc_sum = self.fb_from_doc_sum(session)
         
@@ -121,8 +121,8 @@ class KeywordFeedbackReceiver(object):
             return fb_from_doc_sum / doc_weight_sum
         else:
             latter_part = (0 \
-                          if doc_weight_sum == 0 \
-                          else fb_from_doc_sum / doc_weight_sum)
+                           if doc_weight_sum == 0 \
+                           else fb_from_doc_sum / doc_weight_sum)
             return self.__class__.alpha * self.fb_from_kw(session) + \
                 (1 - self.__class__.alpha) * latter_part
 

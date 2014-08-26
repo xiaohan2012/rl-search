@@ -105,7 +105,6 @@ class QueryBasedRecommender(Recommender):
         except ValueError: # sample larger than population
             kws_from_docs = all_kws_from_docs
             
-        print kws_from_docs
         # get all the documents that have keywords in common with the documents being recommended
         assoc_docs = Document.get_many(self._doc_ids_that_contain_keywords([kw.id for kw in kws_from_docs]))
                 
@@ -159,7 +158,6 @@ class QueryBasedRecommender(Recommender):
         
         #get none zero scores
         non_zero_scores = filter(None, scores)
-        print non_zero_scores
         sorted_scores = sorted(enumerate(non_zero_scores), 
                                key = lambda (_, score): score, 
                                reverse = True)

@@ -17,7 +17,7 @@ class Robot(object):
 
 class NearSightedRobot(object):
     """
-    Robot that are near sighted. 
+    Robot that are greedy.
     It chooses the docs/kws that are most similar to the goal
     """
     def __init__(self, initial_query = None):

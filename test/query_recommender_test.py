@@ -17,7 +17,7 @@ class QueryRecommenderTest(NumericTestCase):
     def setUp(self):
         self.r = QueryBasedRecommender(4, 2,
                                        4, 2,
-                                       **fmim)
+                                       **fmim.__dict__)
     
     def test_word_vec(self):
         words = ["web", "database"]

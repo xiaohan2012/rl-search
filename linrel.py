@@ -23,7 +23,12 @@ def linrel(y_t, D_t, D, mu, c):
     print "doing linrel.."
     feature_n = D_t.shape[1] #the feature number
     
+    print "inv(%d x %d)" %(feature_n, feature_n)
+    
     inter_M = (D_t.T * D_t + mu * eye(feature_n, feature_n)).todense()
+    
+    
+    
     a_t = D * inv(inter_M) * D_t.T 
     
     explt_scores = a_t * y_t

@@ -71,10 +71,11 @@ class CmdApp():
     """
     def __init__(self, ppgt, upd, init_recommender, main_recommender):
         """
-        ppgt: feedback propagator
+        ppgt: feedback propagator class
+        upd: feedback updater class
         """
         self.ppgt = ppgt
-        self.upd = upd
+        self.upd = upd 
         self.init_recommender = init_recommender
         self.main_recommender = main_recommender
 
@@ -194,7 +195,7 @@ class CmdApp():
 
 def main(desired_doc, desired_kw, session):    
     ######################
-    #Global variables to be set
+    # Global variables to be set
     ######################
     AUTO_INTERACT = True
     MAX_ITER = 10
@@ -227,10 +228,10 @@ def main(desired_doc, desired_kw, session):
                           doc_fb_threshold = options.doc_fb_threshold)
 
     
-    print type(options.kw_filters), options.kw_filters
     kw_filters = FilterRepository.get_filters_from_str(options.kw_filters)
     doc_filters = FilterRepository.get_filters_from_str(options.doc_filters)
-
+    
+    print "Filters: \n doc:%r\n kw:%r" %(doc_filters, kw_filters)
     ######################
     # Sampler initialization
     ######################
@@ -309,10 +310,10 @@ if __name__ == "__main__":
     ######################
     db_conn = torndb.Connection("%s:%s" % (options.mysql_host, options.mysql_port), 
                                 options.mysql_database, options.mysql_user, options.mysql_password)
-
+    
     from scinet3.data import load_fmim
     fmim_dict = load_fmim(db_conn, options.mysql_table, keyword_field_name = options.mysql_keyword_fieldname, refresh = options.refresh_pickle).__dict__
-
+    
     from scinet3.model import config_model    
     config_model(db_conn, options.mysql_table, fmim_dict, options.doc_alpha, options.kw_alpha)
 

@@ -179,33 +179,36 @@ def load_fmim(db, table="brown", keyword_field_name = 'processed_keywords', tfid
 class FeatureMatrixAndIndexMapping(object):
     """
     Feature matrix and indexing mapping for documents and keywords
+    
+    Comment:
+    The "_" prefixing all the properties is strange. Better make it public
     """
     DICT_FIELDS = ["kw_ind", "doc_ind", "kw_ind_r", "doc_ind_r", "kw2doc_m", "doc2kw_m"]
     
     @property
-    def _kw2doc_m(self):
+    def kw2doc_m(self):
         return self.__kw2doc_m
 
     @property
-    def _doc2kw_m(self):
+    def doc2kw_m(self):
         return self.__doc2kw_m
 
     @property
-    def _kw_ind(self):
+    def kw_ind(self):
         return self.__kw_ind
 
     @property
-    def _doc_ind(self):
+    def doc_ind(self):
         return self.__doc_ind
 
     @property
-    def _kw_ind_r(self):                
+    def kw_ind_r(self):                
         if self.__kw_ind_r is None:#cache it if not exist
             self.__kw_ind_r = dict([(ind, kw ) for kw, ind in self.__kw_ind.items()])
         return self.__kw_ind_r
 
     @property
-    def _doc_ind_r(self):
+    def doc_ind_r(self):
         if self.__doc_ind_r is None:#cache it if not exist
             self.__doc_ind_r = dict([(ind, doc_id ) for doc_id, ind in self.__doc_ind.items()])
         return self.__doc_ind_r
@@ -213,10 +216,10 @@ class FeatureMatrixAndIndexMapping(object):
     @property
     def __dict__(self):
         """export as a dictionary"""
-        return dict([(field, getattr(self, "_%s" %field))
+        return dict([(field, getattr(self, "%s" %field))
                      for field in  self.__class__.DICT_FIELDS])
 
-    def __init__(self, kw_ind, doc_ind, kw2doc_m, doc2kw_m):
+    def __init__(self, kw_ind, doc_ind, kw2doc_m, doc2kw_m, kw_ind_r = None, doc_ind_r = None):
         """
         kw_ind: keyword id to matrix row index mapping
         doc_ind: doc id to matirx row index mapping
@@ -229,8 +232,9 @@ class FeatureMatrixAndIndexMapping(object):
         self.__kw_ind = kw_ind
         self.__doc_ind = doc_ind
         
-        self.__kw_ind_r = None
-        self.__doc_ind_r = None        
+        
+        self.__kw_ind_r = (kw_ind_r or None)
+        self.__doc_ind_r = (doc_ind_r or None)
 
 
 

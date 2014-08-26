@@ -24,7 +24,7 @@ class ModelList(list):
             return list(self)[0].vec
         else:
             return (csr_matrix([model.vec.toarray()[0,:] 
-                                for model in self]).sum(0) 
+                                for model in self]).sum(0)                 
                     / len(self))    
 
     def __repr__(self):

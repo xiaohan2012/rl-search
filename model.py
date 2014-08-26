@@ -64,8 +64,7 @@ class Document(DocumentFeedbackReceiver, Model):
 
         #mutual binding for keywords
         for kw in doc['keywords']: 
-            if doc not in kw.docs:
-                kw.add_assoc_doc(doc)
+            kw.add_assoc_doc(doc)
 
         #set dict keys as attributes
         for key, value in doc.items():
@@ -75,6 +74,9 @@ class Document(DocumentFeedbackReceiver, Model):
         
     @classmethod
     def load_all_from_db(cls):
+        """
+        Method to initialize the whole dataset
+        """
         cls.__ensure_configured()
         
         rows = cls.db_conn.query("SELECT * from %s" %(cls.table))
@@ -108,7 +110,7 @@ class Document(DocumentFeedbackReceiver, Model):
         get multiple documents by id
         """
         return scinet3.modellist.DocumentList([cls.get(_id)
-                                             for _id in ids])
+                                               for _id in ids])
 
     @property
     def vec(self):

@@ -20,10 +20,10 @@ def evaluation_manager(desired_docs, desired_kws, session):
     print "Evaluation results:"
 
     print "for docs:"
-    print eval_results[0]
+    print eval_results[0] #closeness of docs
 
     print "for kws:"
-    print eval_results[1]
+    print eval_results[1] #closeness of kws
 
 
     displayed_docs = set([doc 
