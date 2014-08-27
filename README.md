@@ -1,3 +1,4 @@
+
 hiit-scinet3
 ============
 
@@ -128,3 +129,8 @@ Return the top `recom_doc_num`.
 
 To allow for richer feedback information, keywords associated with the recommended documents in the previous section is also returned to the user(but displayed in a less obvious way)
 
+=======
+scinet3
+=======
+
+Explorative document retrieval using collaborative feedback
