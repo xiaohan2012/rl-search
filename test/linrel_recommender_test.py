@@ -28,16 +28,15 @@ class LinRelUtilityTest(NumericTestCase):
                          set(kws))
 
     def test_filter_objs(self):
-        def has_redis_filter(objs):
+        def has_redis_filter(objs = None):
             return filter(lambda obj: Keyword.get("redis") in obj.keywords,  objs)
 
-        def has_database_filter(objs):
+        def has_database_filter(objs = None):
             return filter(lambda obj: Keyword.get("database") in obj.keywords,  objs)
 
         self.assertEqual(list(Document.get_many([1, 7])),
-                         self.r._filter_objs(Document.get_many([1, 7, 8]),
-                                             [has_redis_filter, has_database_filter])
-        )
+                         self.r._filter_objs([has_redis_filter, has_database_filter], 
+                                             objs = Document.get_many([1, 7, 8])))
 
     def test_submatrix_and_indexing(self):
         docs = Document.get_many([1,2])
@@ -136,7 +135,7 @@ class LinRelRecommenderWithFilterTest(NumericTestCase):
         self.r = LinRelRecommender(2, 2, 
                                    1.0, 0.1, 1.0, 0.1,
                                    #the default configuration
-                                   kw_filters = None, doc_filters = None, 
+                                   kw_filters = None, doc_filters = [self.kw_count_filter, self.has_database_filter],
                                    **fmim.__dict__)
         
         self.session = get_session()
@@ -148,8 +147,8 @@ class LinRelRecommenderWithFilterTest(NumericTestCase):
         self.session.update_doc_feedback(Document.get(2), .7)
         self.session.update_doc_feedback(Document.get(8), .7)
 
-        filtered_kws = self.r._filter_objs(Keyword.all_kws, kw_filters)
-        filtered_docs = self.r._filter_objs(Document.all_docs, doc_filters)
+        filtered_kws = self.r._filter_objs(kw_filters, kws = Keyword.all_kws)
+        filtered_docs = self.r._filter_objs(doc_filters, docs = Document.all_docs)
         
         kw2doc_submat, kw_ind_map, kw_ind_map_r = self.r._submatrix_and_indexing(filtered_kws, filtered_docs, fmim.kw2doc_m, fmim.kw_ind, fmim.doc_ind)
         doc2kw_submat, doc_ind_map, doc_ind_map_r = self.r._submatrix_and_indexing(filtered_docs, filtered_kws, fmim.doc2kw_m, fmim.doc_ind, fmim.kw_ind)
@@ -207,5 +206,5 @@ class LinRelRecommenderWithFilterTest(NumericTestCase):
     def test_recommend_using_default(self):
         docs, kws = self.r.recommend(self.session)
 
-        self.assertEqual(Document.get_many([1,8]), docs)
-        self.assertEqual(Keyword.get_many(["redis", "database", "a", "python"]), kws)
+        self.assertEqual(Document.get_many([1,2]), docs)
+        self.assertEqual(Keyword.get_many(["redis", "database", "a", "the"]), kws)

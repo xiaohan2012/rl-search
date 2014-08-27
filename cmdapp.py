@@ -41,13 +41,14 @@ define("samp_doc_num", default=5, help="extra document number apart from the rec
 ##############################
 # Sampling/filtering(to be use before LinRel for dimension reduction)
 ##############################
-define("kw_filters", default="kw_fb_filter", help="The names of samplers to use, separated by comma")
-define("doc_filters", default="doc_fb_filter", help="The names of filters to use, separated by comma")
+define("kw_filters", default="kw_fb", help="The names of samplers to use, separated by comma")
+define("doc_filters", default="doc_fb", help="The names of filters to use, separated by comma")
+define("filter_those_with_fb", default=True, help="Whether we consider only those keywords/documents with feedback or not")
 define("kw_samplers", default=None, help="The names of samplers to use, separated by comma")
 define("doc_samplers", default=None, help="The names of samplers to use, separated by comma")
 
-define("kw_fb_threshold", default=0.01, help="The feedback threshold used for `kw_fb_filter`")
-define("doc_fb_threshold", default=0.01, help="The feedback threshold used for `doc_fb_filter`")
+define("kw_fb_threshold", default=0., help="The feedback threshold used for `kw_fb_filter`")
+define("doc_fb_threshold", default=0.1, help="The feedback threshold used for `doc_fb_filter`")
 
 
 ##############################
@@ -100,6 +101,7 @@ class CmdApp():
         "dockws": [[keyword_id, doc_id, feedback_value], ...]
         }
         """
+        print "propagation started..."
         for doc_fb in feedbacks.get("docs", []):
             doc_id, fb = doc_fb
             doc = Document.get(doc_id)
@@ -122,6 +124,7 @@ class CmdApp():
         # propagation is done
         # updates the feedback value 
         self.upd.update(session)
+        print "propagation finished"
 
     def interact_with_user(self, docs, kws, simulated_input = []):
         """
@@ -225,13 +228,15 @@ def main(desired_doc, desired_kw, session):
     from scinet3.filters import FilterRepository
     FilterRepository.init(session = session, 
                           kw_fb_threshold = options.kw_fb_threshold, 
-                          doc_fb_threshold = options.doc_fb_threshold)
+                          doc_fb_threshold = options.doc_fb_threshold,
+                          with_fb = options.filter_those_with_fb)
 
     
     kw_filters = FilterRepository.get_filters_from_str(options.kw_filters)
     doc_filters = FilterRepository.get_filters_from_str(options.doc_filters)
     
-    print "Filters: \n doc:%r\n kw:%r" %(doc_filters, kw_filters)
+    print "Using keyword filter:", kw_filters
+    print "Using document filter:", doc_filters
     ######################
     # Sampler initialization
     ######################

@@ -44,8 +44,10 @@ def evaluation_manager(desired_docs, desired_kws, session):
     target_kw_occurrences = filter(lambda kw: kw in evaluator.desired_kws, 
                                     displayed_kws)
     
-    print "%d / %d precision" %(len(target_kw_occurrences), len(displayed_kws))
-    print "%d / %d recall" %(len(target_kw_occurrences), len(evaluator.desired_kws))
+    print "precision: %d / %d = %f" %(len(target_kw_occurrences), len(displayed_kws), 
+                                      len(target_kw_occurrences) / float(len(displayed_kws)))
+    print "recall: %d / %d = %f" %(len(target_kw_occurrences), len(evaluator.desired_kws),
+                                   len(target_kw_occurrences) / len(evaluator.desired_kws))
 
 class GoalBasedEvaluator(object):
     """

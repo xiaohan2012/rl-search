@@ -70,7 +70,7 @@ class LinRelRecommender(Recommender):
         
         return scores, exploitation_scores, exploration_scores
     
-    def _filter_objs(self, objs, filters):
+    def _filter_objs(self, filters, **kwargs):
         """
         We shall do some filtering here:
         select only the objects which passes at least one of the filters
@@ -80,7 +80,7 @@ class LinRelRecommender(Recommender):
         """
         sel_objs = set()
         for filter_func in filters:
-            sel_objs |= set(filter_func(objs))
+            sel_objs |= set(filter_func(**kwargs))
             
         return list(sel_objs)
         
@@ -207,8 +207,12 @@ class LinRelRecommender(Recommender):
         """                
         # do some filtering and 
         #get the sub matrix as well as mapping
+        kw_filters = kw_filters or self.kw_filters
+        doc_filters = doc_filters or self.doc_filters
+        
         if kw_filters:
-            filtered_kws = self._filter_objs(Keyword.all_kws, kw_filters)
+            print "filtering keywords...."
+            filtered_kws = self._filter_objs(kw_filters, kws = Keyword.all_kws)
             print "%d / %d keywords" %(len(filtered_kws), len(Keyword.all_kws))
             
         else: # no filter is invovled
@@ -216,8 +220,10 @@ class LinRelRecommender(Recommender):
             filtered_kws = Keyword.all_kws
 
         if doc_filters:
-            filtered_docs = self._filter_objs(Document.all_docs, doc_filters)
-            print "%d / %d keywords" %(len(filtered_docs), len(Document.all_docs))
+            print "filtering documents...."
+            filtered_docs = self._filter_objs(doc_filters, docs = Document.all_docs)
+            
+            print "%d / %d documents" %(len(filtered_docs), len(Document.all_docs))
         else: # no filter is invovled
             print "no document filter is used"
             filtered_docs = Document.all_docs
@@ -225,6 +231,8 @@ class LinRelRecommender(Recommender):
         
         kw2doc_submat, kw_ind_map, kw_ind_map_r = self._submatrix_and_indexing(filtered_kws, filtered_docs, self.kw2doc_m, self.kw_ind, self.doc_ind)
         doc2kw_submat, doc_ind_map, doc_ind_map_r = self._submatrix_and_indexing(filtered_docs, filtered_kws, self.doc2kw_m, self.doc_ind, self.kw_ind)
+        
+        print "document2keyword matrix shape=", doc2kw_submat.shape
         
         fmim = FeatureMatrixAndIndexMapping(kw_ind_map, doc_ind_map, kw2doc_submat, doc2kw_submat, kw_ind_map_r, doc_ind_map_r)
         

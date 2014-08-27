@@ -1,4 +1,5 @@
-import pickle
+
+import cPickle as pickle
 import uuid
 from collections import defaultdict
 from types import IntType, StringType, DictType
@@ -219,24 +220,35 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
     @property
     def kw_feedbacks(self):
         """keyword feedback"""
-        return dict([(Keyword.get(_id), fb)
-                     for _id, fb in self.get("kw_feedbacks", {}).items()])
+        key = "session:%s:%s" %(self.session_id, "kw_feedbacks")
+        return dict([(Keyword.get(_id), float(fb))
+                     for _id, fb in self.redis.hgetall(key).items()])
+
+        # return dict([(Keyword.get(_id), fb)
+        #              for _id, fb in self.get("kw_feedbacks", {}).items()])
             
 
     @property
     def doc_feedbacks(self):
         """document feedback"""
-        return dict([(Document.get(_id), fb)
-                     for _id, fb in self.get("doc_feedbacks", {}).items()])
+        key = "session:%s:%s" %(self.session_id, "doc_feedbacks")
+        return dict([(Document.get(int(_id)), float(fb))
+                     for _id, fb in self.redis.hgetall(key).items()])
+        # return dict([(Document.get(_id), fb)
+        #              for _id, fb in self.get("doc_feedbacks", {}).items()])
 
 
     def update_kw_feedback(self, kw, fb):
         """update keyword feedback"""
-        self.hmset("kw_feedbacks", {kw.id: fb})
+        key = "session:%s:%s" %(self.session_id, "kw_feedbacks")
+        self.redis.hmset(key, {kw.id: fb})
+        # self.hmset("kw_feedbacks", {kw.id: fb})
 
     def update_doc_feedback(self, doc, fb):
         """update document feedback"""
-        self.hmset("doc_feedbacks", {doc.id: fb})
+        key = "session:%s:%s" %(self.session_id, "doc_feedbacks")
+        self.redis.hmset(key, {doc.id: fb})
+        # self.hmset("doc_feedbacks", {doc.id: fb})
 
 
     ####################################
@@ -325,7 +337,7 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
     #############################
     
     def set(self, key, value):
-        self.redis.set('session:%s:%s' %(self.session_id, key),  pickle.dumps(value))
+        self.redis.set("session:%s:%s" %(self.session_id, key),  pickle.dumps(value))
 
     def get(self, key, default=None):
         data = self.redis.get('session:%s:%s' %(self.session_id, key))
