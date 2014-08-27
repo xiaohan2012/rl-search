@@ -1,7 +1,7 @@
-MYSQL_PWD = "xh24206688"
-MYSQL_DB = "archive"
-MYSQL_USER = "hxiao"
-MYSQL_HOST = "ugluk"
+MYSQL_PWD = "your db password"
+MYSQL_DB = "mysql database name"
+MYSQL_USER = "mysql db username"
+MYSQL_HOST = "mysql db host"
 MYSQL_CONN_SETTING = {'host': MYSQL_HOST,
                       'user':MYSQL_USER,
                       'passwd':MYSQL_PWD,
@@ -18,8 +18,8 @@ TORNDB_CONN_SETTING = {'host': MYSQL_HOST,
                        
 
 
-REDIS_HOST = 'ugluk'
-REDIS_DB = "scinet3"
+REDIS_HOST = "redis host"
+REDIS_DB = "redis db name"
 REDIS_PORT = 6379
 
 REDIS_CONN_SETTING = {
