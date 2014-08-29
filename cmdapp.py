@@ -293,14 +293,17 @@ def main(desired_doc, desired_kw, session):
         kws_to_be_displayed = filter(lambda kw: kw.has_key("recommended") and kw["recommended"], #kinda weird, kw.get("recommended", False) **should** be OK, but ...
                                      kws)
         
-        #session records recommendation
+        # session records recommendation
         session.add_doc_recom_list(docs)
         session.add_kw_recom_list(kws_to_be_displayed)
         
-        if AUTO_INTERACT:#if robot is asked to come into stage            
+        if AUTO_INTERACT:# if robot is asked to come into stage            
             feedback = robot.give_feedback(docs, kws_to_be_displayed)
         else:
             feedback = app.interact_with_user(docs, kws_to_be_displayed)
+        
+        # add user feedback
+        session.user_fb_hist_append(feedback)
         
         app.receive_feedbacks(session, feedback)
 

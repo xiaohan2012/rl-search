@@ -192,30 +192,19 @@ class RedisRecommendationSessionHandler(RecommendationSessionHandler):
         return self.redis.set('session:%s:%s' %(self.session_id, key), pickle.dumps(hist))
 
     ###############################
-    #get the doc/kw feedback history
+    # user feedback history
     ###############################
     @property
-    def kw_fb_hist(self):
-        """keyword feedback history"""
-        return self._list_getter('kw_fb_hist')
+    def user_fb_hist(self):
+        """user feedback history"""
+        return self.get("user_fb_hist", [])
 
-    @kw_fb_hist.setter
-    def kw_fb_hist(self, val):
-        """keyword feedback history"""
-        self._list_setter('kw_fb_hist', val)
-
-    @property
-    def doc_fb_hist(self):
-        """document feedback history"""
-        return self._list_getter('doc_fb_hist')
-
-    @doc_fb_hist.setter
-    def doc_fb_hist(self, val):
-        """document feedback history"""
-        self._list_setter('doc_fb_hist', val)
+    def user_fb_hist_append(self, lst):
+        """add to user feedback history"""
+        self.set("user_fb_hist", self.user_fb_hist + [lst])
 
     ####################################
-    #kw/doc feedback getter/updater
+    # kw/doc feedback getter/updater
     ####################################
     @property
     def kw_feedbacks(self):

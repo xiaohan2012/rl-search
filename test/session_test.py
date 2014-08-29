@@ -152,3 +152,23 @@ class RecommendationTrackingTest(unittest.TestCase):
 
         self.assertEqual(iter2, self.session.last_recom_docs)
         
+    
+class FeedbackTrackingTest(unittest.TestCase):
+    def setUp(self):
+        self.session = get_session()
+        
+                
+    def test_before_append(self):
+        self.assertEqual([], self.session.user_fb_hist)
+
+    def test_toegether(self):
+        fb = {"docs": [[1, .8], [1001, .9]],
+                         "kws": [["model selection", .8], ["computational lingustics", .7]],
+                         "dockws": [["information retrieval", 1, .8], ["information extraction", 1003, .7]]
+                     }
+        
+        self.session.user_fb_hist_append(fb)
+
+        self.assertEqual([fb], self.session.user_fb_hist)
+        
+        

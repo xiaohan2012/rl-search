@@ -79,6 +79,8 @@ class Document(DocumentFeedbackReceiver, Model):
         """
         cls.__ensure_configured()
         
+        cls.all_docs = [] #empty it
+        
         rows = cls.db_conn.query("SELECT * from %s" %(cls.table))
         for row in rows:
             doc = cls.prepare_doc(row)
