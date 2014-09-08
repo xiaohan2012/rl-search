@@ -90,3 +90,6 @@ docs/_build/
 
 *.class
 
+
+*.pic
+*.pickle

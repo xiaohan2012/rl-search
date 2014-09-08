@@ -79,13 +79,9 @@ def doc_fb_threshold_filter(threshold, session, docs = None,  with_fb = True):
                        for doc in docs]
         print "doc2fb_list", doc2fb_list
     return DocumentList(fb_threshold_filter(threshold, doc2fb_list))
-
+    
 
 class FilterRepository(object):
-    __all__ = ["get", 
-               "kw_fb_filter", 
-               "doc_fb_filter"]
-    
     @classmethod
     def init(cls, **kwargs):
         """

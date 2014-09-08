@@ -5,7 +5,7 @@ from collections import defaultdict
 from types import IntType, StringType, DictType
 
 from scinet3.model import Document, Keyword
-from scinet3.redis_util import (isnumber, dict2right_type)
+# from scinet3.redis_util import (isnumber, dict2right_type)
 
 class RecommendationSessionHandler(object):
     @property

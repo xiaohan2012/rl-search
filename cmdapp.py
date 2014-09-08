@@ -13,17 +13,18 @@ from scinet3.model import (Document, Keyword)
 #################
 define("port", default=8000, help="run on the given port", type=int)
 define("mysql_port", default=3306, help="db's port", type=int)
-define("mysql_host", default="ugluk", help="db database host")
-define("mysql_user", default="hxiao", help="db database user")
-define("mysql_password", default="xh24206688", help="db database password")
+define("mysql_host", default="localhost", help="db database host")
+define("mysql_user", default="root", help="db database user")
+define("mysql_password", default="kid1412", help="db database password")
 define("mysql_database", default="archive", help="db database name")
 define("mysql_keyword_fieldname", default="keywords", help="name of field that stores the keywords")
 
-define("redis_port", default=6379, help="redis' port", type=int)
-define("redis_host", default="ugluk", help="key-value cache host")
-define("redis_db", default="scinet3", help="key-value db")
+define("redis_port", default=6379, help="redis port", type=int)
+define("redis_host", default="127.0.0.1", help="key-value cache host")
+define("redis_db", default= None, help="key-value db")
 
-define("mysql_table", default='john', help="db table to be used")
+define("mysql_table", default='archive_500', help="db table to be used")
+
 
 ##############################
 # Use pickle will be faster
@@ -345,5 +346,5 @@ if __name__ == "__main__":
     
     
     with evaluation_manager(desired_docs, desired_kws, session):
-        with profiler_manager():
-            main(desired_docs, desired_kws, session)
+        # with profiler_manager():
+        main(desired_docs, desired_kws, session)

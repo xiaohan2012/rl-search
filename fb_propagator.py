@@ -45,6 +45,7 @@ class OnePassPropagator(FeedbackPropagator):
 
         #from doc to associated keywords
         for kw in doc.keywords:
+            # We consider only the keywords that can pass the filter
             kw.rec_fb_from_doc(doc, fb_numer, session)        
             
         #those objects' feedback shall be updated
